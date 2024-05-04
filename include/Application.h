@@ -7,6 +7,17 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <optional>
+
+struct QueueFamilyIndices 
+{
+    std::optional<uint32_t> graphicsFamily;
+
+    bool isComplete() 
+    {
+        return graphicsFamily.has_value();
+    }
+};
 
 class Application 
 {
@@ -26,6 +37,7 @@ private:
     GLFWwindow* window;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -50,6 +62,12 @@ private:
     void setupDebugMessenger();
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+    void pickPhysicalDevice();
+
+    bool isDeviceSuitable(VkPhysicalDevice device);
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 };
 
 #endif // !APPLICATION_H
