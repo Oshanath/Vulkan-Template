@@ -1,9 +1,9 @@
 #include "Application.h"
 
-Application app;
-
 int main() 
 {
+    Application app("Vulkan Template");
+
     try {
         app.run();
     }
