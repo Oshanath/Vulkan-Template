@@ -1,8 +1,8 @@
-#include "Application.h"
+#include "TriangleRenderer.h"
 
 int main() 
 {
-    Application app("Vulkan Template");
+    TriangleRenderer app("Vulkan Template");
 
     try {
         app.run();

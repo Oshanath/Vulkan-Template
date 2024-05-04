@@ -14,10 +14,12 @@ endif()
 set(VULKAN_TEMPLATE_SOURCES
 	${PROJECT_SOURCE_DIR}/src/Application.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/TriangleRenderer.cpp
     )
 
 set(SHADER_SOURCES 
 	${PROJECT_SOURCE_DIR}/src/shaders/test.vert
+    ${PROJECT_SOURCE_DIR}/src/shaders/test.frag
     )
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -30,7 +32,7 @@ foreach(GLSL ${SHADER_SOURCES})
     add_custom_command(
         OUTPUT ${SPIRV}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/bin/shaders"
-        COMMAND ${GLSL_VALIDATOR} --target-env vulkan1.2 -V ${GLSL} -o ${SPIRV} -gVS
+        COMMAND ${GLSL_VALIDATOR} --target-env vulkan1.3 -V ${GLSL} -o ${SPIRV} -gVS
         DEPENDS ${GLSL})
     list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)

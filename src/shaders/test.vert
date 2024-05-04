@@ -1,42 +1,20 @@
 #version 450
 
-layout(location = 0) in vec4 VS_IN_Position;
-layout(location = 1) in vec4 VS_IN_Texcoord;
-layout(location = 2) in vec4 VS_IN_Normal;
-layout(location = 3) in vec4 VS_IN_Tangent;
-layout(location = 4) in vec4 VS_IN_Bitangent;
+layout(location = 0) out vec3 fragColor;
 
-layout (location = 0) out vec4 FS_IN_FragPos;
-layout (location = 1) out vec2 FS_IN_Texcoord;
-layout (location = 2) out vec3 FS_IN_Normal;
+vec2 positions[3] = vec2[](
+    vec2(0.0, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5)
+);
 
-layout( push_constant ) uniform constants
-{
-	mat4 model;
-} pc;
+vec3 colors[3] = vec3[](
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0)
+);
 
-layout (set = 1, binding = 0) uniform PerFrameUBO 
-{
-	mat4 view;
-	mat4 projection;
-	mat4 lightSpaceMatrix;
-} ubo;
-
-void main() 
-{
-    // Transform position into world space
-	vec4 world_pos = pc.model * vec4(VS_IN_Position.xyz, 1.0);
-
-    // Pass world position into Fragment shader
-    FS_IN_FragPos = world_pos;
-
-    FS_IN_Texcoord = VS_IN_Texcoord.xy;
-
-    // Transform world position into clip space
-	gl_Position = ubo.projection * ubo.view * world_pos;
-	
-    // Transform vertex normal into world space
-    mat3 normal_mat = mat3(pc.model);
-
-	FS_IN_Normal = normal_mat * VS_IN_Normal.xyz;
+void main() {
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    fragColor = colors[gl_VertexIndex];
 }

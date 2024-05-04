@@ -33,11 +33,11 @@ public:
     Application(std::string app_name);
     void run();
 
-private:
     uint32_t WIDTH = 1920;
     uint32_t HEIGHT = 1080;
     std::string APP_NAME;
 
+protected:
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -72,7 +72,11 @@ private:
 
     void main_loop();
 
+    virtual void main_loop_extended() = 0;
+
     void cleanup();
+
+    virtual void cleanup_extended() = 0;
 
     void init_window();
 
@@ -109,6 +113,10 @@ private:
     void createSwapChain();
 
     void createImageViews();
+
+    std::vector<char> readFile(const std::string& filename);
+
+    void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name);
 };
 
 #endif // !APPLICATION_H
