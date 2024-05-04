@@ -38,6 +38,8 @@ private:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device;
+    VkQueue graphicsQueue;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -68,6 +70,8 @@ private:
     bool isDeviceSuitable(VkPhysicalDevice device);
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
+    void createLogicalDevice();
 };
 
 #endif // !APPLICATION_H
