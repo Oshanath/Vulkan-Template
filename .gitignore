@@ -1,2 +1,5 @@
 .vs/
 out/
+bin/
+lib/
+external/

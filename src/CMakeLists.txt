@@ -3,18 +3,26 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
-set(VCT_RENDERER_SOURCES
-	main.cpp
+if(CMAKE_SIZEOF_VOID_P EQUAL 8) 
+    message("Using 64-bit glslangValidator")
+    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message("Using 32-bit glslangValidator")
+    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin32/glslangValidator.exe")
+endif()
+
+set(VULKAN_TEMPLATE_SOURCES
+	${PROJECT_SOURCE_DIR}/src/Application.cpp
+    ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
 set(SHADER_SOURCES 
-	shaders/test.vert
+	${PROJECT_SOURCE_DIR}/src/shaders/test.vert
     )
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_executable(VCTRendererNoFramework ${VCT_RENDERER_SOURCES} ${SHADER_SOURCES}) 
-#target_link_libraries(VCTRenderer dwSampleFramework)
+add_executable(VulkanTemplate ${VULKAN_TEMPLATE_SOURCES} ${SHADER_SOURCES} "main.cpp")
 
 foreach(GLSL ${SHADER_SOURCES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
@@ -27,7 +35,10 @@ foreach(GLSL ${SHADER_SOURCES})
     list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)
 
-add_custom_target(VCTRenderer_Shaders DEPENDS ${SPIRV_BINARY_FILES})
-add_dependencies(VCTRendererNoFramework VCTRenderer_Shaders)
+add_custom_target(VulkanTemplate_Shaders DEPENDS ${SPIRV_BINARY_FILES})
+add_dependencies(VulkanTemplate VulkanTemplate_Shaders)
 
-set_property(TARGET VCTRendererNoFramework PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/")
+set_property(TARGET VulkanTemplate PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/")
+
+target_link_libraries(VulkanTemplate glfw)
+target_link_libraries(VulkanTemplate ${Vulkan_LIBRARY})
