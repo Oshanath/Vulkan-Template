@@ -249,26 +249,26 @@ void TriangleRenderer::createFramebuffers()
     }
 }
 
-void TriangleRenderer::recordCommandBuffer(uint32_t imageIndex)
+void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t imageIndex)
 {
     beginCommandBuffer();
 
-    beginRenderPass(imageIndex);
+    beginRenderPass(currentFrame, imageIndex);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     setDynamicState();
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0);
 
-    vkCmdEndRenderPass(commandBuffer);
+    vkCmdEndRenderPass(commandBuffers[currentFrame]);
 
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    if (vkEndCommandBuffer(commandBuffers[currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to record command buffer!");
     }
 }
 
-void TriangleRenderer::beginRenderPass(uint32_t imageIndex)
+void TriangleRenderer::beginRenderPass(uint32_t currentFrame, uint32_t imageIndex)
 {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -281,7 +281,7 @@ void TriangleRenderer::beginRenderPass(uint32_t imageIndex)
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void TriangleRenderer::setDynamicState()
@@ -293,15 +293,15 @@ void TriangleRenderer::setDynamicState()
     viewport.height = static_cast<float>(swapChainExtent.height);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+    vkCmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
 
     VkRect2D scissor{};
     scissor.offset = { 0, 0 };
     scissor.extent = swapChainExtent;
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
 }
 
-void TriangleRenderer::main_loop_extended(uint32_t imageIndex)
+void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageIndex)
 {
-    recordCommandBuffer(imageIndex);
+    recordCommandBuffer(currentFrame, imageIndex);
 }

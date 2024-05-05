@@ -36,6 +36,8 @@ public:
     uint32_t WIDTH = 1920;
     uint32_t HEIGHT = 1080;
     std::string APP_NAME;
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+    uint32_t currentFrame = 0;
 
 protected:
     const std::vector<const char*> validationLayers = {
@@ -62,11 +64,11 @@ protected:
     VkQueue graphicsQueue;
     VkQueue presentQueue;
     VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
+    std::vector<VkCommandBuffer> commandBuffers;
 
-    VkSemaphore imageAvailableSemaphore;
-    VkSemaphore renderFinishedSemaphore;
-    VkFence inFlightFence;
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -78,7 +80,7 @@ protected:
 
     void main_loop();
 
-    virtual void main_loop_extended(uint32_t imageIndex) = 0;
+    virtual void main_loop_extended(uint32_t currentFrame, uint32_t imageIndex) = 0;
 
     void cleanup();
 
@@ -126,9 +128,9 @@ protected:
 
     void createCommandPool();
 
-    void createCommandBuffer();
+    void createCommandBuffers();
 
-    virtual void recordCommandBuffer(uint32_t imageIndex) = 0;
+    virtual void recordCommandBuffer(uint32_t currentFrame, uint32_t imageIndex) = 0;
 
     void beginCommandBuffer();
 
