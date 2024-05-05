@@ -38,6 +38,7 @@ public:
     std::string APP_NAME;
     const int MAX_FRAMES_IN_FLIGHT = 2;
     uint32_t currentFrame = 0;
+    bool framebufferResized = false;
 
 protected:
     const std::vector<const char*> validationLayers = {
@@ -60,6 +61,8 @@ protected:
     std::vector<VkImageView> swapChainImageViews;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
+    VkRenderPass swapChainRenderPass;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
@@ -135,6 +138,14 @@ protected:
     void beginCommandBuffer();
 
     void createSyncObjects();
+
+    void recreateSwapChain();
+
+    void cleanupSwapChain();
+
+    void createSwapChainFramebuffers();
+
+    void createSwapChainRenderPass();
 };
 
 #endif // !APPLICATION_H
