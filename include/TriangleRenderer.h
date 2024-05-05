@@ -1,6 +1,7 @@
 #ifndef TRIANGLE_RENDERER_H
 
 #include "Application.h"
+#include "VertexBuffer.h"
 
 class TriangleRenderer : public Application
 {
@@ -10,6 +11,8 @@ private:
 
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
+
+	VertexBuffer vertexBuffer;
 
 public:
 	TriangleRenderer(std::string app_name);

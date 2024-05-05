@@ -15,6 +15,7 @@ set(VULKAN_TEMPLATE_SOURCES
 	${PROJECT_SOURCE_DIR}/src/Application.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     ${PROJECT_SOURCE_DIR}/src/TriangleRenderer.cpp
+    ${PROJECT_SOURCE_DIR}/src/VertexBuffer.cpp
     )
 
 set(SHADER_SOURCES 

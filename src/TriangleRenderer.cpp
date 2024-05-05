@@ -1,12 +1,14 @@
 #include "TriangleRenderer.h"
 
-TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
+TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name), vertexBuffer(device, physicalDevice)
 {
     createGraphicsPipeline();
 }
 
 void TriangleRenderer::cleanup_extended()
 {
+    vertexBuffer.cleanup();
+
     vkDestroyPipeline(device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, swapChainRenderPass, nullptr);
@@ -43,10 +45,10 @@ void TriangleRenderer::createGraphicsPipeline()
     // Vertex input
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexBuffer.attributeDescriptions.size());
+    vertexInputInfo.pVertexBindingDescriptions = &vertexBuffer.bindingDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = vertexBuffer.attributeDescriptions.data();
 
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -187,7 +189,11 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
 
     setDynamicState();
 
-    vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0);
+    VkBuffer vertexBuffers[] = { vertexBuffer.vertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
+
+    vkCmdDraw(commandBuffers[currentFrame], static_cast<uint32_t>(vertexBuffer.vertices.size()), 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffers[currentFrame]);
 
