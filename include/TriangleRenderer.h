@@ -9,12 +9,19 @@ struct Vertex {
 	glm::vec3 color;
 };
 
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
 class TriangleRenderer : public Application
 {
 private:
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;
 
+	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
@@ -37,6 +44,12 @@ private:
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
 
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
+	std::vector<void*> uniformBuffersMapped;
+
+	std::vector<VkDescriptorSet> descriptorSets;
+
 public:
 	TriangleRenderer(std::string app_name);
 
@@ -49,6 +62,10 @@ public:
 	void setDynamicState();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createUniformBuffers();
+	void createDescriptorSetLayout();
+	void updateUniformBuffer(uint32_t currentFrame);
+	void createDescriptorSets();
 };
 
 #endif // !TRIANGLE_RENDERER_H

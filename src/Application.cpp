@@ -67,6 +67,7 @@ void Application::init_vulkan()
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
+    createDescriptorPool();
 }
 
 void Application::main_loop()
@@ -153,6 +154,8 @@ void Application::cleanup()
     }
 
     vkDestroyCommandPool(device, commandPool, nullptr);
+
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
     vkDestroyDevice(device, nullptr);
 
@@ -867,4 +870,21 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
     vkQueueWaitIdle(graphicsQueue);
 
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
+void Application::createDescriptorPool()
+{
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor pool!");
+    }
 }

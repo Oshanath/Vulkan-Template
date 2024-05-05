@@ -63,6 +63,7 @@ protected:
     VkExtent2D swapChainExtent;
     VkRenderPass swapChainRenderPass;
     std::vector<VkFramebuffer> swapChainFramebuffers;
+    VkDescriptorPool descriptorPool;
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
@@ -152,6 +153,8 @@ protected:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
+    void createDescriptorPool();
 };
 
 #endif // !APPLICATION_H
