@@ -61,6 +61,12 @@ protected:
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
+
+    VkSemaphore imageAvailableSemaphore;
+    VkSemaphore renderFinishedSemaphore;
+    VkFence inFlightFence;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -72,7 +78,7 @@ protected:
 
     void main_loop();
 
-    virtual void main_loop_extended() = 0;
+    virtual void main_loop_extended(uint32_t imageIndex) = 0;
 
     void cleanup();
 
@@ -117,6 +123,16 @@ protected:
     std::vector<char> readFile(const std::string& filename);
 
     void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name);
+
+    void createCommandPool();
+
+    void createCommandBuffer();
+
+    virtual void recordCommandBuffer(uint32_t imageIndex) = 0;
+
+    void beginCommandBuffer();
+
+    void createSyncObjects();
 };
 
 #endif // !APPLICATION_H
