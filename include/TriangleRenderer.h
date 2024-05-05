@@ -19,15 +19,23 @@ private:
 	VkPipeline graphicsPipeline;
 
 	const std::vector<Vertex> vertices = {
-		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+	};
+
+	const std::vector<uint32_t> indices = {
+		0, 1, 2, 2, 3, 0
 	};
 
 	VkVertexInputBindingDescription bindingDescription;
 	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions;
+
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 
 public:
 	TriangleRenderer(std::string app_name);
@@ -40,6 +48,7 @@ public:
 	void beginRenderPass(uint32_t currentFrame, uint32_t imageIndex);
 	void setDynamicState();
 	void createVertexBuffer();
+	void createIndexBuffer();
 };
 
 #endif // !TRIANGLE_RENDERER_H
