@@ -66,6 +66,9 @@ protected:
     VkRenderPass swapChainRenderPass;
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkDescriptorPool descriptorPool;
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
@@ -168,7 +171,10 @@ protected:
 
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
-    VkImageView createImageView(VkImage image, VkFormat format);
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags);
+
+    void createDepthResources();
+
 };
 
 #endif // !APPLICATION_H
