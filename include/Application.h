@@ -9,6 +9,8 @@
 #include <vector>
 #include <optional>
 
+#include <stb_image.h>
+
 struct QueueFamilyIndices 
 {
     std::optional<uint32_t> graphicsFamily;
@@ -155,6 +157,18 @@ protected:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     void createDescriptorPool();
+
+    void createImage(uint32_t width, uint32_t height, uint32_t depth, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+
+    void createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& imageView, VkSampler& textureSampler);
+
+    VkCommandBuffer beginSingleTimeCommands();
+
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+    VkImageView createImageView(VkImage image, VkFormat format);
 };
 
 #endif // !APPLICATION_H
