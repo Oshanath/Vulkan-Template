@@ -40,7 +40,6 @@ public:
 	void beginRenderPass(uint32_t currentFrame, uint32_t imageIndex);
 	void setDynamicState();
 	void createVertexBuffer();
-	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };
 
 #endif // !TRIANGLE_RENDERER_H
