@@ -8,7 +8,8 @@
 
 TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name), camera(glm::vec3(-2907.25, 2827.39, 755.888), glm::vec3(0.0f, 0.0f, 0.0f))
 {
-    createTextureImage("models/texture.jpg", textureImage, textureImageMemory, textureImageView, textureSampler);
+    helper->createTextureImage("models/texture.jpg", textureImage, textureImageMemory, textureImageView);
+    helper->createSampler(textureSampler);
     createVertexBuffer();
     createIndexBuffer();
     createUniformBuffers();

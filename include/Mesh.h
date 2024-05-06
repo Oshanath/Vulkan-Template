@@ -78,8 +78,14 @@ class Model
 {
 public:
 	std::shared_ptr<Helper> helper;
+	std::string path;
+	std::string directory;
 
 	std::vector<std::unique_ptr<Mesh>> meshes;
+	std::vector<VkImage> textureImages;
+	std::vector<VkDeviceMemory> textureImagesMemory;
+	std::vector<VkImageView> textureImageViews;
+	VkSampler textureSampler;
 
 	Model(std::string path, std::shared_ptr<Helper> helper);
 	~Model();

@@ -3,7 +3,8 @@
 #include <stdexcept>
 
 
-Model::Model(std::string path, std::shared_ptr<Helper> helper) : helper(helper)
+Model::Model(std::string path, std::shared_ptr<Helper> helper) : 
+    helper(helper), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
     Assimp::Importer importer;
 
@@ -54,11 +55,51 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) : helper(helper)
         meshes.emplace_back(std::make_unique<Mesh>(helper, std::move(vertices), std::move(indices), materialIndex));
 	}
 
+    // Populate materials
+    textureImages.resize(scene->mNumMaterials);
+    textureImagesMemory.resize(scene->mNumMaterials);
+    textureImageViews.resize(scene->mNumMaterials);
+
+    helper->createSampler(textureSampler);
+
+    for (unsigned int i = 0; i < scene->mNumMaterials; i++)
+    {
+        const aiMaterial* material = scene->mMaterials[i];
+
+        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) 
+        {
+            aiString Path;
+
+            if (material->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS) 
+            {
+                std::string FullPath = directory + "/" + Path.data;
+
+                helper->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i]);
+            }
+            else
+            {
+                throw std::runtime_error("Texture path retrieval failed");
+            }
+        }
+        else
+        {
+            std::cout << "Material has no diffuse texture\n";
+            break;
+        }
+    }
+
 }
 
 Model::~Model()
 {
+    for (unsigned int i = 0; i < textureImages.size(); i++)
+    {
+        vkDestroyImageView(helper->device, textureImageViews[i], nullptr);
+        vkFreeMemory(helper->device, textureImagesMemory[i], nullptr);
+        vkDestroyImage(helper->device, textureImages[i], nullptr);
+    }
 
+    vkDestroySampler(helper->device, textureSampler, nullptr);
 }
 
 Mesh::Mesh(std::shared_ptr<Helper> helper, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)

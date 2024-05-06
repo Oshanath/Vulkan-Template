@@ -175,14 +175,6 @@ protected:
 
     void createDescriptorPool();
 
-    void createImage(uint32_t width, uint32_t height, uint32_t depth, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-
-    void createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& imageView, VkSampler& textureSampler);
-
-    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags);
-
     void createDepthResources();
 
 };
