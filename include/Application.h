@@ -10,6 +10,12 @@
 #include <optional>
 
 #include <stb_image.h>
+#include "Camera.h"
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 struct QueueFamilyIndices 
 {
@@ -41,6 +47,14 @@ public:
     const int MAX_FRAMES_IN_FLIGHT = 2;
     uint32_t currentFrame = 0;
     bool framebufferResized = false;
+
+    double currentFrameTime = 0.0;
+    double lastFrameTime = 0.0;
+    double deltaTime;
+
+    virtual void key_callback_extended(GLFWwindow* window, int key, int scancode, int action, int mods, double deltaTime) = 0;
+    virtual void mouse_callback_extended(GLFWwindow* window, int button, int action, int mods, double deltaTime) = 0;
+    virtual void cursor_position_callback_extended(GLFWwindow* window, double xpos, double ypos) = 0;
 
 protected:
     const std::vector<const char*> validationLayers = {
@@ -78,6 +92,7 @@ protected:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
+
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;

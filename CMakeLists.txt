@@ -24,4 +24,5 @@ include_directories(${GLFW_INCLUDE_DIRS}
                     ${JSON_INCLUDE_DIRS})
 
 add_subdirectory(external/glfw)
+add_subdirectory(external/assimp)
 add_subdirectory(src)

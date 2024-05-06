@@ -6,7 +6,7 @@
 
 #include <chrono>
 
-TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
+TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name), camera(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f))
 {
     createTextureImage("models/texture.jpg", textureImage, textureImageMemory, textureImageView, textureSampler);
     createVertexBuffer();
@@ -284,12 +284,17 @@ void TriangleRenderer::setDynamicState()
 
 void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageIndex)
 {
+    camera.deltaTime = deltaTime;
+    camera.move();
     updateUniformBuffer(currentFrame);
     recordCommandBuffer(currentFrame, imageIndex);
 }
 
 void TriangleRenderer::createVertexBuffer()
 {
+    /*std::pair<std::vector<Vertex>, std::vector<uint32_t>> vertexIndexData = testMesh();
+    std::vector<Vertex> vertices = vertexIndexData.first;*/
+
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
     VkBuffer stagingBuffer;
@@ -311,6 +316,9 @@ void TriangleRenderer::createVertexBuffer()
 
 void TriangleRenderer::createIndexBuffer()
 {
+    /*std::pair<std::vector<Vertex>, std::vector<uint32_t>> vertexIndexData = testMesh();
+    indices = vertexIndexData.second;*/
+
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
     VkBuffer stagingBuffer;
@@ -332,7 +340,7 @@ void TriangleRenderer::createIndexBuffer()
 
 void TriangleRenderer::createUniformBuffers()
 {
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+    VkDeviceSize bufferSize = sizeof(MVPMatrices);
 
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -379,11 +387,14 @@ void TriangleRenderer::updateUniformBuffer(uint32_t currentImage)
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    UniformBufferObject ubo{};
+    /*MVPMatrices ubo{};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));  
     ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
+    ubo.proj[1][1] *= -1;*/
+
+    MVPMatrices ubo = camera.getMVPMatrices(swapChainExtent.width, swapChainExtent.height);
+    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 
@@ -406,7 +417,7 @@ void TriangleRenderer::createDescriptorSets()
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
+        bufferInfo.range = sizeof(MVPMatrices);
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -433,4 +444,85 @@ void TriangleRenderer::createDescriptorSets()
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
+}
+
+void TriangleRenderer::key_callback_extended(GLFWwindow* window, int key, int scancode, int action, int mods, double deltaTime)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+
+    if (key == GLFW_KEY_W && action == GLFW_PRESS)
+    {
+        camera.movingForward = true;
+	}
+    else if (key == GLFW_KEY_W && action == GLFW_RELEASE)
+    {
+        camera.movingForward = false;
+    }
+
+    if (key == GLFW_KEY_S && action == GLFW_PRESS)
+    {
+		camera.movingBackward = true;
+	}
+    else if (key == GLFW_KEY_S && action == GLFW_RELEASE)
+    {
+		camera.movingBackward = false;
+	}
+
+    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    {
+		camera.movingLeft = true;
+	}
+    else if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+    {
+		camera.movingLeft = false;
+	}
+
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    {
+		camera.movingRight = true;
+	}
+    else if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+    {
+		camera.movingRight = false;
+	}
+
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+		camera.movingUp = true;
+	}
+    else if (key == GLFW_KEY_SPACE && action == GLFW_RELEASE)
+    {
+		camera.movingUp = false;
+	}
+
+    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS)
+    {
+		camera.movingDown = true;
+	}
+    else if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE)
+    {
+		camera.movingDown = false;
+	}
+}
+
+void TriangleRenderer::mouse_callback_extended(GLFWwindow* window, int button, int action, int mods, double deltaTime)
+{
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+    {
+		camera.freeLook = true;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
+    {
+        camera.freeLook = false;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+}
+
+void TriangleRenderer::cursor_position_callback_extended(GLFWwindow* window, double xpos, double ypos)
+{
+    	camera.mouse_callback(xpos, ypos);
 }

@@ -48,6 +48,24 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     app->framebufferResized = true;
 }
 
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->key_callback_extended(window, key, scancode, action, mods, app->deltaTime);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->mouse_callback_extended(window, button, action, mods, app->deltaTime);
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+	app->cursor_position_callback_extended(window, xpos, ypos);
+}
+
 void Application::init_window()
 {
     glfwInit();
@@ -57,6 +75,10 @@ void Application::init_window()
     window = glfwCreateWindow(WIDTH, HEIGHT, APP_NAME.c_str(), nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
 }
 
 void Application::init_vulkan()
@@ -81,6 +103,10 @@ void Application::main_loop()
 {
     while (!glfwWindowShouldClose(window)) 
     {
+        currentFrameTime = glfwGetTime();
+        deltaTime = currentFrameTime - lastFrameTime;
+        lastFrameTime = currentFrameTime;
+
         glfwPollEvents();
 
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);

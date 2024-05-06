@@ -15,6 +15,8 @@ set(VULKAN_TEMPLATE_SOURCES
 	${PROJECT_SOURCE_DIR}/src/Application.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     ${PROJECT_SOURCE_DIR}/src/TriangleRenderer.cpp
+    ${PROJECT_SOURCE_DIR}/src/Mesh.cpp
+    ${PROJECT_SOURCE_DIR}/src/Camera.cpp
     )
 
 set(SHADER_SOURCES 
@@ -43,4 +45,5 @@ add_dependencies(VulkanTemplate VulkanTemplate_Shaders)
 set_property(TARGET VulkanTemplate PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/")
 
 target_link_libraries(VulkanTemplate glfw)
+target_link_libraries(VulkanTemplate assimp)
 target_link_libraries(VulkanTemplate ${Vulkan_LIBRARY})
