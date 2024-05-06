@@ -26,7 +26,7 @@ private:
 	};
 
 	Camera camera;
-	std::unique_ptr<Model> sponza;
+	std::unique_ptr<Model> model;
 
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;

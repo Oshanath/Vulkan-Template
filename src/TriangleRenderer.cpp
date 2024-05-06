@@ -10,7 +10,8 @@ TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
 {
     helper->createTextureImage("models/texture.jpg", textureImage, textureImageMemory, textureImageView);
     helper->createSampler(textureSampler);
-    sponza = std::make_unique<Model>("models/sponza/Sponza.gltf", helper);
+    model = std::make_unique<Model>("models/sponza/Sponza.gltf", helper);
+    //model = std::make_unique<Model>("models/Dragon.glb", helper);
 
     createVertexBuffer();
     createIndexBuffer();
@@ -23,7 +24,7 @@ TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
 
 void TriangleRenderer::cleanup_extended()
 {
-    sponza.reset();
+    model.reset();
 
     vkDestroyBuffer(device, vertexBuffer, nullptr);
     vkFreeMemory(device, vertexBufferMemory, nullptr);
@@ -237,7 +238,7 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
 
     setDynamicState();
 
-    for (auto& mesh : sponza->meshes)
+    for (auto& mesh : model->meshes)
     {
         VkBuffer vertexBuffers[] = { mesh->vertexBuffer };
         VkDeviceSize offsets[] = { 0 };
@@ -246,7 +247,7 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
         vkCmdBindIndexBuffer(commandBuffers[currentFrame], mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &sponza->descriptorSets[mesh->materialIndex], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &model->descriptorSets[mesh->materialIndex], 0, nullptr);
 
         vkCmdDrawIndexed(commandBuffers[currentFrame], static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
     }
