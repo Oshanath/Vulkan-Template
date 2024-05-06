@@ -2,10 +2,11 @@
 
 #include <stdexcept>
 
-
 Model::Model(std::string path, std::shared_ptr<Helper> helper) : 
     helper(helper), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
+    createDescriptorSetLayout(*helper);
+
     Assimp::Importer importer;
 
     const aiScene* scene = importer.ReadFile(path,
@@ -59,6 +60,7 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
     textureImages.resize(scene->mNumMaterials);
     textureImagesMemory.resize(scene->mNumMaterials);
     textureImageViews.resize(scene->mNumMaterials);
+    descriptorSets.resize(scene->mNumMaterials);
 
     helper->createSampler(textureSampler);
 
@@ -75,6 +77,34 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
                 std::string FullPath = directory + "/" + Path.data;
 
                 helper->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i]);
+
+                // Create descriptor set
+                VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };
+                VkDescriptorSetAllocateInfo allocInfo = {};
+                allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+                allocInfo.descriptorPool = helper->descriptorPool;
+                allocInfo.descriptorSetCount = 1;
+                allocInfo.pSetLayouts = layouts;
+
+                if (vkAllocateDescriptorSets(helper->device, &allocInfo, &descriptorSets[i]) != VK_SUCCESS) {
+					throw std::runtime_error("Failed to allocate descriptor sets");
+				}
+
+                VkDescriptorImageInfo imageInfo = {};
+				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo.imageView = textureImageViews[i];
+				imageInfo.sampler = textureSampler;
+
+				VkWriteDescriptorSet descriptorWrite = {};
+				descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWrite.dstSet = descriptorSets[i];
+				descriptorWrite.dstBinding = 0;
+				descriptorWrite.dstArrayElement = 0;
+				descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWrite.descriptorCount = 1;
+				descriptorWrite.pImageInfo = &imageInfo;
+
+				vkUpdateDescriptorSets(helper->device, 1, &descriptorWrite, 0, nullptr);
             }
             else
             {
@@ -92,6 +122,8 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
 
 Model::~Model()
 {
+    destroyDescriptorSetLayout(*helper);
+
     for (unsigned int i = 0; i < textureImages.size(); i++)
     {
         vkDestroyImageView(helper->device, textureImageViews[i], nullptr);

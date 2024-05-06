@@ -1,8 +1,8 @@
 #include "Helper.h"
 #include <stdexcept>
 
-Helper::Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice) : 
-    commandPool(commandPool), device(device), graphicsQueue(graphicsQueue), physicalDevice(physicalDevice)
+Helper::Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDescriptorPool descriptorPool) :
+    commandPool(commandPool), device(device), graphicsQueue(graphicsQueue), physicalDevice(physicalDevice), descriptorPool(descriptorPool)
 {}
 
 Helper::Helper(){}

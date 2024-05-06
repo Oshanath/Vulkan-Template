@@ -12,8 +12,9 @@ public:
 	VkDevice device;
 	VkQueue graphicsQueue;
 	VkPhysicalDevice physicalDevice;
+	VkDescriptorPool descriptorPool;
 
-	Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice);
+	Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDescriptorPool descriptorPool);
 	Helper();
 
 	VkCommandBuffer beginSingleTimeCommands();

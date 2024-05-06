@@ -10,6 +10,8 @@ TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
 {
     helper->createTextureImage("models/texture.jpg", textureImage, textureImageMemory, textureImageView);
     helper->createSampler(textureSampler);
+    sponza = std::make_unique<Model>("models/sponza/Sponza.gltf", helper);
+
     createVertexBuffer();
     createIndexBuffer();
     createUniformBuffers();
@@ -17,7 +19,6 @@ TriangleRenderer::TriangleRenderer(std::string app_name) : Application(app_name)
     createDescriptorSets();
     createGraphicsPipeline();
 
-    sponza = std::make_unique<Model>("models/sponza/Sponza.gltf", helper);
 }
 
 void TriangleRenderer::cleanup_extended()
@@ -177,9 +178,10 @@ void TriangleRenderer::createGraphicsPipeline()
 
     // Pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, Model::descriptorSetLayout };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = layouts;
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -232,7 +234,6 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
     beginRenderPass(currentFrame, imageIndex);
 
     vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
     setDynamicState();
 
@@ -243,6 +244,9 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
 
         vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffers[currentFrame], mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &sponza->descriptorSets[mesh->materialIndex], 0, nullptr);
 
         vkCmdDrawIndexed(commandBuffers[currentFrame], static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
     }

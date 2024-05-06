@@ -77,6 +77,9 @@ private:
 class Model
 {
 public:
+	inline static VkDescriptorSetLayout descriptorSetLayout;
+	inline static bool descriptorSetLayoutCreated = false;
+
 	std::shared_ptr<Helper> helper;
 	std::string path;
 	std::string directory;
@@ -86,9 +89,48 @@ public:
 	std::vector<VkDeviceMemory> textureImagesMemory;
 	std::vector<VkImageView> textureImageViews;
 	VkSampler textureSampler;
+	std::vector<VkDescriptorSet> descriptorSets;
 
 	Model(std::string path, std::shared_ptr<Helper> helper);
 	~Model();
+
+	inline static void createDescriptorSetLayout(Helper& helper)
+	{
+		if (descriptorSetLayoutCreated)
+			return;
+
+		descriptorSetLayoutCreated = true;
+
+		VkDescriptorSetLayoutBinding dsLayoutBinding = {};
+		dsLayoutBinding.binding = 0;
+		dsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		dsLayoutBinding.descriptorCount = 1;
+		dsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		dsLayoutBinding.pImmutableSamplers = nullptr;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &dsLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(helper.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create descriptor set layout");
+		}
+	}
+
+	inline static VkDescriptorSetLayout getDescriptorSetLayout()
+	{
+		return descriptorSetLayout;
+	}
+
+	inline static void destroyDescriptorSetLayout(Helper& helper)
+	{
+		if (descriptorSetLayoutCreated)
+		{
+			vkDestroyDescriptorSetLayout(helper.device, descriptorSetLayout, nullptr);
+			descriptorSetLayoutCreated = false;
+		}
+	}
 };
 
 #endif // !MESH_H
