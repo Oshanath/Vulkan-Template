@@ -61,8 +61,9 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
     textureImagesMemory.resize(scene->mNumMaterials);
     textureImageViews.resize(scene->mNumMaterials);
     descriptorSets.resize(scene->mNumMaterials);
+    mipLevels.resize(scene->mNumMaterials);
 
-    helper->createSampler(textureSampler);
+    helper->createSampler(textureSampler, 10);
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -76,7 +77,7 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
             {
                 std::string FullPath = directory + "/" + Path.data;
 
-                helper->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i]);
+                helper->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i], &mipLevels[i]);
 
                 // Create descriptor set
                 VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };

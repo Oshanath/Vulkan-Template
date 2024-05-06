@@ -90,6 +90,7 @@ public:
 	std::vector<VkImageView> textureImageViews;
 	VkSampler textureSampler;
 	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<uint32_t> mipLevels;
 
 	Model(std::string path, std::shared_ptr<Helper> helper);
 	~Model();
