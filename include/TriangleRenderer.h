@@ -1,4 +1,5 @@
 #ifndef TRIANGLE_RENDERER_H
+#define TRIANGLE_RENDERER_H
 
 #include "Application.h"
 #include <array>
@@ -25,6 +26,7 @@ private:
 	};
 
 	Camera camera;
+	std::unique_ptr<Model> sponza;
 
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;

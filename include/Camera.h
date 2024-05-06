@@ -1,4 +1,5 @@
 #ifndef CAMERA_H
+#define CAMERA_H
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -23,7 +24,7 @@ public:
 	glm::vec3 right;
 	glm::vec3 worldUp;
 
-	float moveSpeed = 10.0;
+	float moveSpeed = 1000.0;
 	float deltaTime;
 
 	bool movingForward = false;

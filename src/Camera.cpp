@@ -16,7 +16,7 @@ MVPMatrices Camera::getMVPMatrices(float width, float height)
 	MVPMatrices matrices;
 
 	matrices.view = glm::lookAt(this->position, this->position + this->front, this->up);
-	matrices.proj = glm::perspective(glm::radians(45.0f), width / height, 0.1f, 2000.0f);
+	matrices.proj = glm::perspective(glm::radians(45.0f), width / height, 0.1f, 10000.0f);
 	matrices.proj[1][1] *= -1;
 
 	return matrices;

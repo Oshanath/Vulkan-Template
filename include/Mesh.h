@@ -1,4 +1,7 @@
 #ifndef MESH_H
+#define MESH_H
+
+#include "Helper.h"
 
 #include <iostream>
 #include <assimp/Importer.hpp>      // C++ importer interface
@@ -9,6 +12,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <array>
+#include <memory>
 
 struct Vertex {
 	glm::vec3 pos;
@@ -48,43 +52,37 @@ struct Vertex {
 	}
 };
 
-inline std::pair<std::vector<Vertex>, std::vector<uint32_t>> testMesh()
+class Mesh
 {
-	Assimp::Importer importer;
+public:
+	std::shared_ptr<Helper> helper;
 
-    const aiScene* scene = importer.ReadFile("models/sponza/Sponza.gltf",
-        aiProcess_CalcTangentSpace |
-        aiProcess_Triangulate |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_SortByPType);
-
-    if (nullptr == scene) {
-        std::cout << "Error loading file\n";
-    }
-
-    std::cout << "File loaded\n";
-
-    std::vector<Vertex> vertices;
+	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+	uint32_t materialIndex;
 
-    for (unsigned int i = 0; i < scene->mMeshes[0]->mNumVertices; i++) {
-		aiVector3D pos = scene->mMeshes[0]->mVertices[i];
-		Vertex vertex{};
-		vertex.pos = { pos.x, pos.y, pos.z };
-		vertices.push_back(vertex);
-	}
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 
-	// Get indices of mesh 0
-	for (unsigned int i = 0; i < scene->mMeshes[0]->mNumFaces; i++) 
-	{
-		aiFace face = scene->mMeshes[0]->mFaces[i];
+	Mesh(std::shared_ptr<Helper> helper, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex);
+	~Mesh();
 
-		for (unsigned int j = 0; j < face.mNumIndices; j++) {
-			indices.push_back(face.mIndices[j]);
-		}
-	}
+private:
+	void createVertexBuffer();
+	void createIndexBuffer();
+};
 
-    return std::pair<std::vector<Vertex>, std::vector<uint32_t>>(vertices, indices);
-}
+class Model
+{
+public:
+	std::shared_ptr<Helper> helper;
+
+	std::vector<std::unique_ptr<Mesh>> meshes;
+
+	Model(std::string path, std::shared_ptr<Helper> helper);
+	~Model();
+};
 
 #endif // !MESH_H
