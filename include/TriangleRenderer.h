@@ -26,7 +26,7 @@ private:
 	std::vector<VkDescriptorSet> descriptorSets;
 
 public:
-	TriangleRenderer(std::string app_name);
+	TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
 
 	void main_loop_extended(uint32_t currentFrame, uint32_t imageIndex) override;
 	void cleanup_extended() override;

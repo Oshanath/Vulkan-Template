@@ -2,7 +2,8 @@
 
 int main() 
 {
-    TriangleRenderer app("Vulkan Template");
+    std::vector<VkValidationFeatureEnableEXT> validation_features = { VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT, VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT };
+    TriangleRenderer app("Vulkan Template", VK_API_VERSION_1_3, std::move(validation_features));
 
     try {
         app.run();

@@ -2,10 +2,10 @@
 
 #include <stdexcept>
 
-Model::Model(std::string path, std::shared_ptr<Helper> helper) : 
-    helper(helper), path(path), directory(path.substr(0, path.find_last_of('/')))
+Model::Model(std::string path, std::shared_ptr<Backend> backend) : 
+    backend(backend), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
-    createDescriptorSetLayout(*helper);
+    createDescriptorSetLayout(*backend);
 
     Assimp::Importer importer;
 
@@ -53,7 +53,7 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
 			}
 		}
 
-        meshes.emplace_back(std::make_unique<Mesh>(helper, std::move(vertices), std::move(indices), materialIndex));
+        meshes.emplace_back(std::make_unique<Mesh>(backend, std::move(vertices), std::move(indices), materialIndex));
 	}
 
     // Populate materials
@@ -63,7 +63,7 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
     descriptorSets.resize(scene->mNumMaterials);
     mipLevels.resize(scene->mNumMaterials);
 
-    helper->createSampler(textureSampler, 10);
+    backend->createSampler(textureSampler, 10);
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -77,17 +77,17 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
             {
                 std::string FullPath = directory + "/" + Path.data;
 
-                helper->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i], &mipLevels[i]);
+                backend->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i], &mipLevels[i]);
 
                 // Create descriptor set
                 VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };
                 VkDescriptorSetAllocateInfo allocInfo = {};
                 allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-                allocInfo.descriptorPool = helper->descriptorPool;
+                allocInfo.descriptorPool = backend->descriptorPool;
                 allocInfo.descriptorSetCount = 1;
                 allocInfo.pSetLayouts = layouts;
 
-                if (vkAllocateDescriptorSets(helper->device, &allocInfo, &descriptorSets[i]) != VK_SUCCESS) {
+                if (vkAllocateDescriptorSets(backend->device, &allocInfo, &descriptorSets[i]) != VK_SUCCESS) {
 					throw std::runtime_error("Failed to allocate descriptor sets");
 				}
 
@@ -105,7 +105,7 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
 				descriptorWrite.descriptorCount = 1;
 				descriptorWrite.pImageInfo = &imageInfo;
 
-				vkUpdateDescriptorSets(helper->device, 1, &descriptorWrite, 0, nullptr);
+				vkUpdateDescriptorSets(backend->device, 1, &descriptorWrite, 0, nullptr);
             }
             else
             {
@@ -123,20 +123,20 @@ Model::Model(std::string path, std::shared_ptr<Helper> helper) :
 
 Model::~Model()
 {
-    destroyDescriptorSetLayout(*helper);
+    destroyDescriptorSetLayout(*backend);
 
     for (unsigned int i = 0; i < textureImages.size(); i++)
     {
-        vkDestroyImageView(helper->device, textureImageViews[i], nullptr);
-        vkFreeMemory(helper->device, textureImagesMemory[i], nullptr);
-        vkDestroyImage(helper->device, textureImages[i], nullptr);
+        vkDestroyImageView(backend->device, textureImageViews[i], nullptr);
+        vkFreeMemory(backend->device, textureImagesMemory[i], nullptr);
+        vkDestroyImage(backend->device, textureImages[i], nullptr);
     }
 
-    vkDestroySampler(helper->device, textureSampler, nullptr);
+    vkDestroySampler(backend->device, textureSampler, nullptr);
 }
 
-Mesh::Mesh(std::shared_ptr<Helper> helper, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
-    : helper(helper), vertices(vertices), indices(indices), materialIndex(materialIndex)
+Mesh::Mesh(std::shared_ptr<Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
+    : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
 {
     //std::cout << "Creaing mesh buffers\n";
     createVertexBuffer();
@@ -146,11 +146,11 @@ Mesh::Mesh(std::shared_ptr<Helper> helper, std::vector<Vertex>&& vertices, std::
 Mesh::~Mesh()
 {
     //std::cout << "Destroying mesh buffers\n";
-    vkDestroyBuffer(helper->device, vertexBuffer, nullptr);
-    vkFreeMemory(helper->device, vertexBufferMemory, nullptr);
+    vkDestroyBuffer(backend->device, vertexBuffer, nullptr);
+    vkFreeMemory(backend->device, vertexBufferMemory, nullptr);
 
-    vkDestroyBuffer(helper->device, indexBuffer, nullptr);
-    vkFreeMemory(helper->device, indexBufferMemory, nullptr);
+    vkDestroyBuffer(backend->device, indexBuffer, nullptr);
+    vkFreeMemory(backend->device, indexBufferMemory, nullptr);
 }
 
 void Mesh::createVertexBuffer()
@@ -159,19 +159,19 @@ void Mesh::createVertexBuffer()
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    helper->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(helper->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(backend->device, stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, vertices.data(), (size_t)bufferSize);
-    vkUnmapMemory(helper->device, stagingBufferMemory);
+    vkUnmapMemory(backend->device, stagingBufferMemory);
 
-    helper->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
-    helper->copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+    backend->copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
-    vkDestroyBuffer(helper->device, stagingBuffer, nullptr);
-    vkFreeMemory(helper->device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(backend->device, stagingBuffer, nullptr);
+    vkFreeMemory(backend->device, stagingBufferMemory, nullptr);
 }
 
 void Mesh::createIndexBuffer()
@@ -180,17 +180,17 @@ void Mesh::createIndexBuffer()
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    helper->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(helper->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(backend->device, stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, indices.data(), (size_t)bufferSize);
-    vkUnmapMemory(helper->device, stagingBufferMemory);
+    vkUnmapMemory(backend->device, stagingBufferMemory);
 
-    helper->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 
-    helper->copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+    backend->copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
-    vkDestroyBuffer(helper->device, stagingBuffer, nullptr);
-    vkFreeMemory(helper->device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(backend->device, stagingBuffer, nullptr);
+    vkFreeMemory(backend->device, stagingBufferMemory, nullptr);
 }

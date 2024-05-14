@@ -1,9 +1,6 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
@@ -15,10 +12,7 @@
 #include "Camera.h"
 #include "Helper.h"
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+
 
 struct QueueFamilyIndices 
 {
@@ -41,7 +35,7 @@ struct SwapChainSupportDetails
 class Application 
 {
 public:
-    Application(std::string app_name);
+    Application(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
     void run();
 
     uint32_t WIDTH = 1920;
@@ -68,35 +62,7 @@ protected:
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    std::shared_ptr<Helper> helper;
-
-    GLFWwindow* window;
-    VkInstance instance;
-    VkDebugUtilsMessengerEXT debugMessenger;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice device;
-    VkSurfaceKHR surface;
-    uint32_t imageCount;
-    VkSwapchainKHR swapChain;
-    std::vector<VkImage> swapChainImages;
-    std::vector<VkImageView> swapChainImageViews;
-    VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
-    VkRenderPass swapChainRenderPass;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
-    VkDescriptorPool descriptorPool;
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
-
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-    VkCommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
-
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+    std::shared_ptr<Backend> backend;
 
 
 #ifdef NDEBUG
@@ -104,8 +70,6 @@ protected:
 #else
     const bool enableValidationLayers = true;
 #endif
-
-    void init_vulkan();
 
     void main_loop();
 
@@ -117,7 +81,7 @@ protected:
 
     void init_window();
 
-    void create_instance();
+    void create_instance(uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
 
     bool checkValidationLayerSupport();
 

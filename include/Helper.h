@@ -4,18 +4,51 @@
 #include <vulkan/vulkan.h>
 #include <string>
 #include <stb_image.h>
+#include <vector>
 
-class Helper
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+class Backend
 {
 public:
-	VkCommandPool commandPool;
+	VkInstance instance;
+	VkDebugUtilsMessengerEXT debugMessenger;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device;
-	VkQueue graphicsQueue;
-	VkPhysicalDevice physicalDevice;
+	VkCommandPool commandPool;
+
+
 	VkDescriptorPool descriptorPool;
 
-	Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDescriptorPool descriptorPool);
-	Helper();
+	uint32_t imageCount;
+	VkSwapchainKHR swapChain;
+	std::vector<VkImage> swapChainImages;
+	VkFormat swapChainImageFormat;
+	std::vector<VkImageView> swapChainImageViews;
+	VkExtent2D swapChainExtent;
+
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
+
+	GLFWwindow* window;
+	VkRenderPass swapChainRenderPass;
+	std::vector<VkFramebuffer> swapChainFramebuffers;
+	VkImage depthImage;
+	VkDeviceMemory depthImageMemory;
+	VkImageView depthImageView;
 
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);

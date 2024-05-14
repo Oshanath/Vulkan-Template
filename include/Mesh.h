@@ -55,7 +55,7 @@ struct Vertex {
 class Mesh
 {
 public:
-	std::shared_ptr<Helper> helper;
+	std::shared_ptr<Backend> backend;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
@@ -66,7 +66,7 @@ public:
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
 
-	Mesh(std::shared_ptr<Helper> helper, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex);
+	Mesh(std::shared_ptr<Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex);
 	~Mesh();
 
 private:
@@ -80,7 +80,7 @@ public:
 	inline static VkDescriptorSetLayout descriptorSetLayout;
 	inline static bool descriptorSetLayoutCreated = false;
 
-	std::shared_ptr<Helper> helper;
+	std::shared_ptr<Backend> backend;
 	std::string path;
 	std::string directory;
 
@@ -92,10 +92,10 @@ public:
 	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<uint32_t> mipLevels;
 
-	Model(std::string path, std::shared_ptr<Helper> helper);
+	Model(std::string path, std::shared_ptr<Backend> backend);
 	~Model();
 
-	inline static void createDescriptorSetLayout(Helper& helper)
+	inline static void createDescriptorSetLayout(Backend& backend)
 	{
 		if (descriptorSetLayoutCreated)
 			return;
@@ -114,7 +114,7 @@ public:
 		layoutInfo.bindingCount = 1;
 		layoutInfo.pBindings = &dsLayoutBinding;
 
-		if (vkCreateDescriptorSetLayout(helper.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(backend.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create descriptor set layout");
 		}
 	}
@@ -124,11 +124,11 @@ public:
 		return descriptorSetLayout;
 	}
 
-	inline static void destroyDescriptorSetLayout(Helper& helper)
+	inline static void destroyDescriptorSetLayout(Backend& backend)
 	{
 		if (descriptorSetLayoutCreated)
 		{
-			vkDestroyDescriptorSetLayout(helper.device, descriptorSetLayout, nullptr);
+			vkDestroyDescriptorSetLayout(backend.device, descriptorSetLayout, nullptr);
 			descriptorSetLayoutCreated = false;
 		}
 	}

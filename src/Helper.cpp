@@ -3,13 +3,7 @@
 #include <cmath>
 #include <iostream>
 
-Helper::Helper(VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDescriptorPool descriptorPool) :
-    commandPool(commandPool), device(device), graphicsQueue(graphicsQueue), physicalDevice(physicalDevice), descriptorPool(descriptorPool)
-{}
-
-Helper::Helper(){}
-
-VkCommandBuffer Helper::beginSingleTimeCommands()
+VkCommandBuffer Backend::beginSingleTimeCommands()
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -29,7 +23,7 @@ VkCommandBuffer Helper::beginSingleTimeCommands()
     return commandBuffer;
 }
 
-void Helper::endSingleTimeCommands(VkCommandBuffer commandBuffer)
+void Backend::endSingleTimeCommands(VkCommandBuffer commandBuffer)
 {
     vkEndCommandBuffer(commandBuffer);
 
@@ -44,7 +38,7 @@ void Helper::endSingleTimeCommands(VkCommandBuffer commandBuffer)
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-void Helper::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void Backend::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -71,7 +65,7 @@ void Helper::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
 }
 
-uint32_t Helper::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t Backend::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -85,7 +79,7 @@ uint32_t Helper::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void Helper::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void Backend::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -96,7 +90,7 @@ void Helper::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
     endSingleTimeCommands(commandBuffer);
 }
 
-void Helper::createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, uint32_t* mipLevels)
+void Backend::createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, uint32_t* mipLevels)
 {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -149,7 +143,7 @@ void Helper::createTextureImage(std::string path, VkImage& textureImage, VkDevic
     textureImageView = createImageView(textureImage, (mipLevels ? levels : 1), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void Helper::generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) 
+void Backend::generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) 
 {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -214,7 +208,7 @@ void Helper::generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight,
     endSingleTimeCommands(commandBuffer);
 }
 
-void Helper::createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
+void Backend::createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
 {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -250,7 +244,7 @@ void Helper::createImage(uint32_t width, uint32_t height, uint32_t depth, uint32
     vkBindImageMemory(device, image, imageMemory, 0);
 }
 
-VkImageView Helper::createImageView(VkImage image, uint32_t mipLevels, VkFormat format, VkImageAspectFlagBits aspectFlags)
+VkImageView Backend::createImageView(VkImage image, uint32_t mipLevels, VkFormat format, VkImageAspectFlagBits aspectFlags)
 {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -271,7 +265,7 @@ VkImageView Helper::createImageView(VkImage image, uint32_t mipLevels, VkFormat 
     return imageView;
 }
 
-void Helper::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+void Backend::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -291,7 +285,7 @@ void Helper::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
     endSingleTimeCommands(commandBuffer);
 }
 
-void Helper::createSampler(VkSampler& textureSampler, uint32_t mipLevels)
+void Backend::createSampler(VkSampler& textureSampler, uint32_t mipLevels)
 {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
