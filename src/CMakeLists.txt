@@ -17,7 +17,7 @@ set(VULKAN_TEMPLATE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/TriangleRenderer.cpp
     ${PROJECT_SOURCE_DIR}/src/Mesh.cpp
     ${PROJECT_SOURCE_DIR}/src/Camera.cpp
-    ${PROJECT_SOURCE_DIR}/src/helper.cpp
+    ${PROJECT_SOURCE_DIR}/src/Backend.cpp
     )
 
 set(SHADER_SOURCES 

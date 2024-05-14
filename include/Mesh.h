@@ -1,7 +1,7 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include "Helper.h"
+#include "Backend.h"
 
 #include <iostream>
 #include <assimp/Importer.hpp>      // C++ importer interface
