@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-Model::Model(std::string path, std::shared_ptr<Backend> backend) : 
+Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) : 
     backend(backend), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
     createDescriptorSetLayout(*backend);
@@ -135,7 +135,7 @@ Model::~Model()
     vkDestroySampler(backend->device, textureSampler, nullptr);
 }
 
-Mesh::Mesh(std::shared_ptr<Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
+Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
     : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
 {
     //std::cout << "Creaing mesh buffers\n";

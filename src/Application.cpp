@@ -32,7 +32,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 Application::Application(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) :
     APP_NAME(app_name)
 {
-    backend = std::make_shared<Backend>();
+    backend = std::make_shared<vpp::Backend>();
 
     init_window();
 

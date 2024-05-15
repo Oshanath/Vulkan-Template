@@ -62,7 +62,7 @@ protected:
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    std::shared_ptr<Backend> backend;
+    std::shared_ptr<vpp::Backend> backend;
 
 
 #ifdef NDEBUG
