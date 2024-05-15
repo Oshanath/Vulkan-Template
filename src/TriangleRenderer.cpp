@@ -7,9 +7,9 @@
 #include <chrono>
 
 TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) : 
-    Application(app_name, apiVersion, validation_features), camera(glm::vec3(-2907.25, 2827.39, 755.888), glm::vec3(0.0f, 0.0f, 0.0f))
+    vpp::Application(app_name, apiVersion, validation_features), camera(glm::vec3(-2907.25, 2827.39, 755.888), glm::vec3(0.0f, 0.0f, 0.0f))
 {
-    model = std::make_unique<Model>("models/sponza/Sponza.gltf", backend);
+    model = std::make_unique<vpp::Model>("models/sponza/Sponza.gltf", backend);
 
     createUniformBuffers();
     createDescriptorSetLayout();
@@ -77,10 +77,10 @@ void TriangleRenderer::createGraphicsPipeline()
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(Vertex::getAttributeDescriptions().size());
-    VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vpp::Vertex::getAttributeDescriptions().size());
+    VkVertexInputBindingDescription bindingDescription = vpp::Vertex::getBindingDescription();
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.pVertexAttributeDescriptions = Vertex::getAttributeDescriptions().data();
+    vertexInputInfo.pVertexAttributeDescriptions = vpp::Vertex::getAttributeDescriptions().data();
 
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -163,7 +163,7 @@ void TriangleRenderer::createGraphicsPipeline()
 
     // Pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, Model::descriptorSetLayout };
+    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, vpp::Model::descriptorSetLayout };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 2;
     pipelineLayoutInfo.pSetLayouts = layouts;
@@ -289,7 +289,7 @@ void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageI
 
 void TriangleRenderer::createUniformBuffers()
 {
-    VkDeviceSize bufferSize = sizeof(MVPMatrices);
+    VkDeviceSize bufferSize = sizeof(vpp::MVPMatrices);
 
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -341,7 +341,7 @@ void TriangleRenderer::updateUniformBuffer(uint32_t currentImage)
     ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;*/
 
-    MVPMatrices ubo = camera.getMVPMatrices(backend->swapChainExtent.width, backend->swapChainExtent.height);
+    vpp::MVPMatrices ubo = camera.getMVPMatrices(backend->swapChainExtent.width, backend->swapChainExtent.height);
     float scale = 0.001f;
     ubo.model = glm::identity<glm::mat4>();
     //ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -367,7 +367,7 @@ void TriangleRenderer::createDescriptorSets()
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(MVPMatrices);
+        bufferInfo.range = sizeof(vpp::MVPMatrices);
 
         std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 

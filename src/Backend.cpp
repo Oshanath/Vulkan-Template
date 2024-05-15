@@ -311,3 +311,90 @@ void vpp::Backend::createSampler(VkSampler& textureSampler, uint32_t mipLevels)
         throw std::runtime_error("failed to create texture sampler!");
     }
 }
+
+
+ 
+void vpp::Buffer::copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+    VkCommandBuffer commandBuffer = backend->beginSingleTimeCommands();
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    backend->endSingleTimeCommands(commandBuffer);
+}
+
+
+vpp::Buffer::Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data): backend(backend), size(size), type(type)
+{
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(backend->device, buffer, &memRequirements);
+
+    if (vkCreateBuffer(backend->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create buffer!");
+    }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+
+    if (type == GPU_ONLY)
+    {
+        allocInfo.memoryTypeIndex = backend->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(backend->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(backend->device, buffer, bufferMemory, 0);
+    }
+
+    else if (type == CONTINOUS_TRANSFER)
+    {
+        
+        allocInfo.memoryTypeIndex = backend->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        if (vkAllocateMemory(backend->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(backend->device, buffer, bufferMemory, 0);
+
+        vkMapMemory(backend->device, bufferMemory, 0, size, 0, &mappedPtr);
+    }
+
+    else if (type == ONE_TIME_TRANSFER)
+    {
+        Buffer stagingBuffer(backend, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr);
+        memcpy(stagingBuffer.mappedPtr, data, (size_t)size);
+
+        allocInfo.memoryTypeIndex = backend->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(backend->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(backend->device, buffer, bufferMemory, 0);
+
+        copyBuffer(backend, stagingBuffer.buffer, buffer, size);
+    }
+}
+
+vpp::Buffer::~Buffer()
+{
+    if (type == CONTINOUS_TRANSFER)
+    {
+		vkUnmapMemory(backend->device, bufferMemory);
+	}
+
+	vkDestroyBuffer(backend->device, buffer, nullptr);
+	vkFreeMemory(backend->device, bufferMemory, nullptr);
+}

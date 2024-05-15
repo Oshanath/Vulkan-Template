@@ -15,7 +15,7 @@ set(VULKAN_TEMPLATE_SOURCES
 	${PROJECT_SOURCE_DIR}/src/Application.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     ${PROJECT_SOURCE_DIR}/src/TriangleRenderer.cpp
-    ${PROJECT_SOURCE_DIR}/src/Mesh.cpp
+    ${PROJECT_SOURCE_DIR}/src/Model.cpp
     ${PROJECT_SOURCE_DIR}/src/Camera.cpp
     ${PROJECT_SOURCE_DIR}/src/Backend.cpp
     )

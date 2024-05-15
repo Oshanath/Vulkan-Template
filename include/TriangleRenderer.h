@@ -3,14 +3,14 @@
 
 #include "Application.h"
 #include <array>
-#include "Mesh.h"
+#include "Model.h"
 
-class TriangleRenderer : public Application
+class TriangleRenderer : public vpp::Application
 {
 private:
 
-	Camera camera;
-	std::unique_ptr<Model> model;
+	vpp::Camera camera;
+	std::unique_ptr<vpp::Model> model;
 
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;

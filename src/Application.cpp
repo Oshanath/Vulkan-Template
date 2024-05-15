@@ -29,7 +29,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
     }
 }
 
-Application::Application(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) :
+vpp::Application::Application(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) :
     APP_NAME(app_name)
 {
     backend = std::make_shared<vpp::Backend>();
@@ -52,7 +52,7 @@ Application::Application(std::string app_name, uint32_t apiVersion, std::vector<
     createSwapChainFramebuffers();
 }
 
-void Application::run()
+void vpp::Application::run()
 {
 	main_loop();
 	cleanup();
@@ -60,29 +60,29 @@ void Application::run()
 
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
 {
-    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    auto app = reinterpret_cast<vpp::Application*>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    auto app = reinterpret_cast<vpp::Application*>(glfwGetWindowUserPointer(window));
     app->key_callback_extended(window, key, scancode, action, mods, app->deltaTime);
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    auto app = reinterpret_cast<vpp::Application*>(glfwGetWindowUserPointer(window));
     app->mouse_callback_extended(window, button, action, mods, app->deltaTime);
 }
 
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+	auto app = reinterpret_cast<vpp::Application*>(glfwGetWindowUserPointer(window));
 	app->cursor_position_callback_extended(window, xpos, ypos);
 }
 
-void Application::init_window()
+void vpp::Application::init_window()
 {
     glfwInit();
 
@@ -97,7 +97,7 @@ void Application::init_window()
     glfwSetCursorPosCallback(backend->window, cursor_position_callback);
 }
 
-void Application::main_loop()
+void vpp::Application::main_loop()
 {
     while (!glfwWindowShouldClose(backend->window))
     {
@@ -172,7 +172,7 @@ void Application::main_loop()
     vkDeviceWaitIdle(backend->device);
 }
 
-void Application::cleanup()
+void vpp::Application::cleanup()
 {
     cleanup_extended();
 
@@ -214,7 +214,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     return VK_FALSE;
 }
 
-void Application::create_instance(uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features_list)
+void vpp::Application::create_instance(uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features_list)
 {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("validation layers requested, but not available!");
@@ -272,7 +272,7 @@ void Application::create_instance(uint32_t apiVersion, std::vector<VkValidationF
     }
 }
 
-bool Application::checkValidationLayerSupport() {
+bool vpp::Application::checkValidationLayerSupport() {
 
     // Get available layers
     uint32_t layerCount;
@@ -299,7 +299,7 @@ bool Application::checkValidationLayerSupport() {
     return true;
 }
 
-std::vector<const char*> Application::getRequiredExtensions() 
+std::vector<const char*> vpp::Application::getRequiredExtensions() 
 {
     // Get required GLFW extensions
     uint32_t glfwExtensionCount = 0;
@@ -315,7 +315,7 @@ std::vector<const char*> Application::getRequiredExtensions()
     return extensions;
 }
 
-void Application::setupDebugMessenger() 
+void vpp::Application::setupDebugMessenger() 
 {
     if (!enableValidationLayers) return;
 
@@ -327,7 +327,7 @@ void Application::setupDebugMessenger()
     }
 }
 
-void Application::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
+void vpp::Application::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
 {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -336,7 +336,7 @@ void Application::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateIn
     createInfo.pfnUserCallback = debugCallback;
 }
 
-void Application::pickPhysicalDevice()
+void vpp::Application::pickPhysicalDevice()
 {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(backend->instance, &deviceCount, nullptr);
@@ -360,7 +360,7 @@ void Application::pickPhysicalDevice()
     }
 }
 
-bool Application::isDeviceSuitable(VkPhysicalDevice device) 
+bool vpp::Application::isDeviceSuitable(VkPhysicalDevice device) 
 {
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -379,7 +379,7 @@ bool Application::isDeviceSuitable(VkPhysicalDevice device)
     return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && indices.isComplete() && extensionsSupported && swapChainAdequate;
 }
 
-QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device) 
+vpp::QueueFamilyIndices vpp::Application::findQueueFamilies(VkPhysicalDevice device) 
 {
     QueueFamilyIndices indices;
     
@@ -414,7 +414,7 @@ QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
     return indices;
 }
 
-void Application::createLogicalDevice()
+void vpp::Application::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(backend->physicalDevice);
     float queuePriority = 1.0f;
@@ -458,14 +458,14 @@ void Application::createLogicalDevice()
     vkGetDeviceQueue(backend->device, indices.presentFamily.value(), 0, &backend->presentQueue);
 }
 
-void Application::createSurface()
+void vpp::Application::createSurface()
 {
     if (glfwCreateWindowSurface(backend->instance, backend->window, nullptr, &backend->surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
     }
 }
 
-bool Application::checkDeviceExtensionSupport(VkPhysicalDevice device)
+bool vpp::Application::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -482,7 +482,7 @@ bool Application::checkDeviceExtensionSupport(VkPhysicalDevice device)
     return requiredExtensions.empty();
 }
 
-SwapChainSupportDetails Application::querySwapChainSupport(VkPhysicalDevice device) 
+vpp::SwapChainSupportDetails vpp::Application::querySwapChainSupport(VkPhysicalDevice device) 
 {
     SwapChainSupportDetails details;
     
@@ -505,7 +505,7 @@ SwapChainSupportDetails Application::querySwapChainSupport(VkPhysicalDevice devi
     return details;
 }
 
-VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) 
+VkSurfaceFormatKHR vpp::Application::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) 
 {
     for (const auto& availableFormat : availableFormats) {
         if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
@@ -516,7 +516,7 @@ VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurf
     return availableFormats[0];
 }
 
-VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
+VkPresentModeKHR vpp::Application::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
 {
     for (const auto& availablePresentMode : availablePresentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -527,7 +527,7 @@ VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentM
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) 
+VkExtent2D vpp::Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) 
 {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
         return capabilities.currentExtent;
@@ -548,7 +548,7 @@ VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabil
     }
 }
 
-void Application::createSwapChain() 
+void vpp::Application::createSwapChain() 
 {
     SwapChainSupportDetails swapChainSupport = querySwapChainSupport(backend->physicalDevice);
 
@@ -604,7 +604,7 @@ void Application::createSwapChain()
     backend->swapChainExtent = extent;
 }
 
-void Application::createImageViews()
+void vpp::Application::createImageViews()
 {
     backend->swapChainImageViews.resize(backend->swapChainImages.size());
 
@@ -613,7 +613,7 @@ void Application::createImageViews()
     }
 }
 
-std::vector<char> Application::readFile(const std::string& filename) 
+std::vector<char> vpp::Application::readFile(const std::string& filename) 
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -630,7 +630,7 @@ std::vector<char> Application::readFile(const std::string& filename)
     return buffer;
 }
 
-void Application::setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
+void vpp::Application::setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
 {
     auto func = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(backend->instance, "vkSetDebugUtilsObjectNameEXT");
 
@@ -643,7 +643,7 @@ void Application::setNameOfObject(VkObjectType type, uint64_t objectHandle, std:
     func(backend->device, &nameInfo);
 }
 
-void Application::createCommandPool()
+void vpp::Application::createCommandPool()
 {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(backend->physicalDevice);
 
@@ -657,7 +657,7 @@ void Application::createCommandPool()
     }
 }
 
-void Application::createCommandBuffers()
+void vpp::Application::createCommandBuffers()
 {
     backend->commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -672,7 +672,7 @@ void Application::createCommandBuffers()
     }
 }
 
-void Application::beginCommandBuffer()
+void vpp::Application::beginCommandBuffer()
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -684,7 +684,7 @@ void Application::beginCommandBuffer()
     }
 }
 
-void Application::createSyncObjects()
+void vpp::Application::createSyncObjects()
 {
     backend->imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     backend->renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -707,7 +707,7 @@ void Application::createSyncObjects()
     }
 }
 
-void Application::recreateSwapChain() {
+void vpp::Application::recreateSwapChain() {
 
     int width = 0, height = 0;
     while (width == 0 || height == 0) {
@@ -725,7 +725,7 @@ void Application::recreateSwapChain() {
     createSwapChainFramebuffers();
 }
 
-void Application::cleanupSwapChain()
+void vpp::Application::cleanupSwapChain()
 {
     vkDestroyImageView(backend->device, backend->depthImageView, nullptr);
     vkDestroyImage(backend->device, backend->depthImage, nullptr);
@@ -742,7 +742,7 @@ void Application::cleanupSwapChain()
     vkDestroySwapchainKHR(backend->device, backend->swapChain, nullptr);
 }
 
-void Application::createSwapChainFramebuffers()
+void vpp::Application::createSwapChainFramebuffers()
 {
     backend->swapChainFramebuffers.resize(backend->swapChainImageViews.size());
 
@@ -767,7 +767,7 @@ void Application::createSwapChainFramebuffers()
     }
 }
 
-void Application::createSwapChainRenderPass()
+void vpp::Application::createSwapChainRenderPass()
 {
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = backend->swapChainImageFormat;
@@ -826,7 +826,7 @@ void Application::createSwapChainRenderPass()
     }
 }
 
-void Application::createDescriptorPool()
+void vpp::Application::createDescriptorPool()
 {
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -845,7 +845,7 @@ void Application::createDescriptorPool()
     }
 }
 
-void Application::createDepthResources()
+void vpp::Application::createDepthResources()
 {
     backend->createImage(backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, backend->depthImage, backend->depthImageMemory);
     backend->depthImageView = backend->createImageView(backend->depthImage, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);

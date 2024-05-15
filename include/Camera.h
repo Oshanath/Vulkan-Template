@@ -9,38 +9,41 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-struct MVPMatrices {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 proj;
-};
-
-class Camera
+namespace vpp
 {
-public:
-	glm::vec3 position;
-	glm::vec3 front;
-	glm::vec3 up;
-	glm::vec3 right;
-	glm::vec3 worldUp;
+	struct MVPMatrices {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
 
-	float moveSpeed = 1000.0;
-	float deltaTime;
+	class Camera
+	{
+	public:
+		glm::vec3 position;
+		glm::vec3 front;
+		glm::vec3 up;
+		glm::vec3 right;
+		glm::vec3 worldUp;
 
-	bool movingForward = false;
-	bool movingBackward = false;
-	bool movingLeft = false;
-	bool movingRight = false;
-	bool movingUp = false;
-	bool movingDown = false;
-	bool freeLook = false;
+		float moveSpeed = 1000.0;
+		float deltaTime;
 
-	Camera(glm::vec3 position, glm::vec3 target);
+		bool movingForward = false;
+		bool movingBackward = false;
+		bool movingLeft = false;
+		bool movingRight = false;
+		bool movingUp = false;
+		bool movingDown = false;
+		bool freeLook = false;
 
-	MVPMatrices getMVPMatrices(float width, float height);
+		Camera(glm::vec3 position, glm::vec3 target);
 
-	void move();
-	void mouse_callback(double xpos, double ypos);
-};
+		MVPMatrices getMVPMatrices(float width, float height);
+
+		void move();
+		void mouse_callback(double xpos, double ypos);
+	};
+}
 
 #endif // !CAMERA_H

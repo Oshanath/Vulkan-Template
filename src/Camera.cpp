@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-Camera::Camera(glm::vec3 position, glm::vec3 target)
+vpp::Camera::Camera(glm::vec3 position, glm::vec3 target)
 {
 	this->position = position;
 	this->worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -11,7 +11,7 @@ Camera::Camera(glm::vec3 position, glm::vec3 target)
 	this->up = glm::normalize(glm::cross(this->right, this->front));
 }
 
-MVPMatrices Camera::getMVPMatrices(float width, float height)
+vpp::MVPMatrices vpp::Camera::getMVPMatrices(float width, float height)
 {
 	MVPMatrices matrices;
 
@@ -22,7 +22,7 @@ MVPMatrices Camera::getMVPMatrices(float width, float height)
 	return matrices;
 }
 
-void Camera::move()
+void vpp::Camera::move()
 {
 	if (this->movingForward)
 	{
@@ -50,7 +50,7 @@ void Camera::move()
 	}
 }
 
-void Camera::mouse_callback(double xpos, double ypos)
+void vpp::Camera::mouse_callback(double xpos, double ypos)
 {
 	if (freeLook)
 	{

@@ -1,8 +1,8 @@
-#include "Mesh.h"
+#include "Model.h"
 
 #include <stdexcept>
 
-Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) : 
+vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) : 
     backend(backend), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
     createDescriptorSetLayout(*backend);
@@ -121,7 +121,7 @@ Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
 
 }
 
-Model::~Model()
+vpp::Model::~Model()
 {
     destroyDescriptorSetLayout(*backend);
 
@@ -135,7 +135,7 @@ Model::~Model()
     vkDestroySampler(backend->device, textureSampler, nullptr);
 }
 
-Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
+vpp::Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
     : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
 {
     //std::cout << "Creaing mesh buffers\n";
@@ -143,7 +143,7 @@ Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices
 	createIndexBuffer();
 }
 
-Mesh::~Mesh()
+vpp::Mesh::~Mesh()
 {
     //std::cout << "Destroying mesh buffers\n";
     vkDestroyBuffer(backend->device, vertexBuffer, nullptr);
@@ -153,7 +153,7 @@ Mesh::~Mesh()
     vkFreeMemory(backend->device, indexBufferMemory, nullptr);
 }
 
-void Mesh::createVertexBuffer()
+void vpp::Mesh::createVertexBuffer()
 {
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
@@ -174,7 +174,7 @@ void Mesh::createVertexBuffer()
     vkFreeMemory(backend->device, stagingBufferMemory, nullptr);
 }
 
-void Mesh::createIndexBuffer()
+void vpp::Mesh::createIndexBuffer()
 {
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 

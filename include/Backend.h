@@ -17,17 +17,24 @@
 
 namespace vpp
 {
+	enum BufferType
+	{
+		CONTINOUS_TRANSFER,
+		ONE_TIME_TRANSFER,
+		GPU_ONLY
+	};
+
 	class Backend
 	{
 	public:
+		GLFWwindow* window;
 		VkInstance instance;
 		VkDebugUtilsMessengerEXT debugMessenger;
 		VkSurfaceKHR surface;
 		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 		VkDevice device;
+
 		VkCommandPool commandPool;
-
-
 		VkDescriptorPool descriptorPool;
 
 		uint32_t imageCount;
@@ -36,9 +43,10 @@ namespace vpp
 		VkFormat swapChainImageFormat;
 		std::vector<VkImageView> swapChainImageViews;
 		VkExtent2D swapChainExtent;
+		VkRenderPass swapChainRenderPass;
+		std::vector<VkFramebuffer> swapChainFramebuffers;
 
 		std::vector<VkCommandBuffer> commandBuffers;
-
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
@@ -46,9 +54,6 @@ namespace vpp
 		std::vector<VkSemaphore> renderFinishedSemaphores;
 		std::vector<VkFence> inFlightFences;
 
-		GLFWwindow* window;
-		VkRenderPass swapChainRenderPass;
-		std::vector<VkFramebuffer> swapChainFramebuffers;
 		VkImage depthImage;
 		VkDeviceMemory depthImageMemory;
 		VkImageView depthImageView;
@@ -64,6 +69,24 @@ namespace vpp
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		void createSampler(VkSampler& textureSampler, uint32_t mipLevels = 0);
 		void generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+	};
+
+	class Buffer
+	{
+	private:
+		VkBuffer buffer;
+		VkDeviceMemory bufferMemory;
+		VkDeviceSize size;
+		void* mappedPtr;
+		Backend* backend;
+
+		BufferType type;
+
+	public:
+		Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data);
+		~Buffer();
+
+		static void copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	};
 }
 
