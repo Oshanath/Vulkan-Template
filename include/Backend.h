@@ -69,7 +69,6 @@ namespace vpp
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 		std::shared_ptr<vpp::Image> createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-		void generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 	};
 
 	class Buffer
@@ -104,6 +103,8 @@ namespace vpp
 
 		Image(Backend* backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 		~Image();
+
+		void generateMipMaps();
 	};
 
 	class ImageView
