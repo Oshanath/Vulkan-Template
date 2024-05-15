@@ -62,7 +62,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
     descriptorSets.resize(scene->mNumMaterials);
     mipLevels.resize(scene->mNumMaterials);
 
-    backend->createSampler(textureSampler, 10);
+    textureSampler = std::make_shared<Sampler>(backend.get(), 10);
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -94,7 +94,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
                 VkDescriptorImageInfo imageInfo = {};
 				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfo.imageView = textureImageViews[i]->imageView;
-				imageInfo.sampler = textureSampler;
+				imageInfo.sampler = textureSampler->sampler;
 
 				VkWriteDescriptorSet descriptorWrite = {};
 				descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -131,7 +131,7 @@ vpp::Model::~Model()
         textureImageViews[i].reset();
     }
 
-    vkDestroySampler(backend->device, textureSampler, nullptr);
+    textureSampler.reset();
 }
 
 vpp::Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)

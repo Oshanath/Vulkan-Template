@@ -88,7 +88,7 @@ namespace vpp
 		std::vector<std::unique_ptr<Mesh>> meshes;
 		std::vector<std::shared_ptr<Image>> textureImages;
 		std::vector<std::shared_ptr<ImageView>> textureImageViews;
-		VkSampler textureSampler;
+		std::shared_ptr<vpp::Sampler> textureSampler;
 		std::vector<VkDescriptorSet> descriptorSets;
 		std::vector<uint32_t> mipLevels;
 
