@@ -60,9 +60,7 @@ namespace vpp
 
 		VkCommandBuffer beginSingleTimeCommands();
 		void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 		void createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, uint32_t* mipLevels = nullptr);
 		void createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 		VkImageView createImageView(VkImage image, uint32_t mipLevels, VkFormat format, VkImageAspectFlagBits aspectFlags);
@@ -73,7 +71,7 @@ namespace vpp
 
 	class Buffer
 	{
-	private:
+	public:
 		VkBuffer buffer;
 		VkDeviceMemory bufferMemory;
 		VkDeviceSize size;
@@ -82,7 +80,6 @@ namespace vpp
 
 		BufferType type;
 
-	public:
 		Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data);
 		~Buffer();
 

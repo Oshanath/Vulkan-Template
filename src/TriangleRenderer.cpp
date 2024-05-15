@@ -25,15 +25,14 @@ void TriangleRenderer::cleanup_extended()
     vkDestroyPipelineLayout(backend->device, pipelineLayout, nullptr);
     vkDestroyRenderPass(backend->device, backend->swapChainRenderPass, nullptr);
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroyBuffer(backend->device, uniformBuffers[i], nullptr);
-        vkFreeMemory(backend->device, uniformBuffersMemory[i], nullptr);
-    }
-
     vkDestroyDescriptorSetLayout(backend->device, descriptorSetLayout, nullptr);
 
     vkDestroyShaderModule(backend->device, fragShaderModule, nullptr);
     vkDestroyShaderModule(backend->device, vertShaderModule, nullptr);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		uniformBuffers[i].reset();
+	}
 }
 
 void TriangleRenderer::createGraphicsPipeline()
@@ -224,11 +223,11 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
 
     for (auto& mesh : model->meshes)
     {
-        VkBuffer vertexBuffers[] = { mesh->vertexBuffer };
+        VkBuffer vertexBuffers[] = { mesh->vertexBuffer->buffer };
         VkDeviceSize offsets[] = { 0 };
 
         vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], mesh->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
         vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &model->descriptorSets[mesh->materialIndex], 0, nullptr);
@@ -291,14 +290,8 @@ void TriangleRenderer::createUniformBuffers()
 {
     VkDeviceSize bufferSize = sizeof(vpp::MVPMatrices);
 
-    uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-    uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
-
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        backend->createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
-
-        vkMapMemory(backend->device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+        uniformBuffers.emplace_back(std::make_shared<vpp::Buffer>(backend.get(), bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr));
     }
 }
 
@@ -345,7 +338,7 @@ void TriangleRenderer::updateUniformBuffer(uint32_t currentImage)
     float scale = 0.001f;
     ubo.model = glm::identity<glm::mat4>();
     //ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    memcpy(uniformBuffers[currentImage]->mappedPtr, &ubo, sizeof(ubo));
 }
 
 void TriangleRenderer::createDescriptorSets()
@@ -365,7 +358,7 @@ void TriangleRenderer::createDescriptorSets()
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
     {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.buffer = uniformBuffers[i]->buffer;
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(vpp::MVPMatrices);
 

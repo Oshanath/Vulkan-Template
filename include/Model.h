@@ -63,10 +63,9 @@ namespace vpp
 		std::vector<uint32_t> indices;
 		uint32_t materialIndex;
 
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
-		VkBuffer indexBuffer;
-		VkDeviceMemory indexBufferMemory;
+		std::shared_ptr<vpp::Buffer> vertexBuffer;
+		std::shared_ptr<vpp::Buffer> indexBuffer;
+		VkDeviceMemory indexBufferMemry;
 
 		Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex);
 		~Mesh();

@@ -138,59 +138,20 @@ vpp::Model::~Model()
 vpp::Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
     : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
 {
-    //std::cout << "Creaing mesh buffers\n";
-    createVertexBuffer();
-	createIndexBuffer();
+    vertexBuffer = std::make_shared<vpp::Buffer>(backend.get(), sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, vertices.data());
+    indexBuffer = std::make_shared<vpp::Buffer>(backend.get(), sizeof(indices[0]) * indices.size(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, indices.data());
 }
 
 vpp::Mesh::~Mesh()
 {
-    //std::cout << "Destroying mesh buffers\n";
-    vkDestroyBuffer(backend->device, vertexBuffer, nullptr);
-    vkFreeMemory(backend->device, vertexBufferMemory, nullptr);
-
-    vkDestroyBuffer(backend->device, indexBuffer, nullptr);
-    vkFreeMemory(backend->device, indexBufferMemory, nullptr);
+    vertexBuffer.reset();
+    indexBuffer.reset();
 }
 
 void vpp::Mesh::createVertexBuffer()
 {
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-    void* data;
-    vkMapMemory(backend->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t)bufferSize);
-    vkUnmapMemory(backend->device, stagingBufferMemory);
-
-    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-
-    backend->copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-    vkDestroyBuffer(backend->device, stagingBuffer, nullptr);
-    vkFreeMemory(backend->device, stagingBufferMemory, nullptr);
 }
 
 void vpp::Mesh::createIndexBuffer()
 {
-    VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-    void* data;
-    vkMapMemory(backend->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indices.data(), (size_t)bufferSize);
-    vkUnmapMemory(backend->device, stagingBufferMemory);
-
-    backend->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-    backend->copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-    vkDestroyBuffer(backend->device, stagingBuffer, nullptr);
-    vkFreeMemory(backend->device, stagingBufferMemory, nullptr);
 }

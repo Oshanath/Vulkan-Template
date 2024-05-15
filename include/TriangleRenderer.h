@@ -19,9 +19,7 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::vector<void*> uniformBuffersMapped;
+	std::vector<std::shared_ptr<vpp::Buffer>> uniformBuffers;
 
 	std::vector<VkDescriptorSet> descriptorSets;
 
