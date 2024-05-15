@@ -31,6 +31,12 @@ namespace vpp
 		GPU_ONLY
 	};
 
+	struct TextureImageCreationResults
+	{
+		std::shared_ptr<Image> image;
+		std::shared_ptr<ImageView> imageView;
+	};
+
 	class Backend
 	{
 	public:
@@ -67,7 +73,7 @@ namespace vpp
 		VkCommandBuffer beginSingleTimeCommands();
 		void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		std::shared_ptr<vpp::Image> createTextureImage(std::string path, uint32_t* mipLevels);
+		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	};
 

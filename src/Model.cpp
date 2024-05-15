@@ -76,8 +76,9 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
             {
                 std::string FullPath = directory + "/" + Path.data;
 
-                textureImages[i] = backend->createTextureImage(FullPath, &mipLevels[i]);
-                textureImageViews[i] = std::make_shared<ImageView>(backend.get(), textureImages[i], 0, mipLevels[i], VK_IMAGE_ASPECT_COLOR_BIT);
+                vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
+                textureImages[i] = results.image;
+                textureImageViews[i] = results.imageView;
 
                 // Create descriptor set
                 VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };

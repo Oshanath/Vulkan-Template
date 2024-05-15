@@ -52,7 +52,7 @@ uint32_t vpp::Backend::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-std::shared_ptr<vpp::Image> vpp::Backend::createTextureImage(std::string path, uint32_t* mipLevels)
+vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string path, uint32_t* mipLevels)
 {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -92,7 +92,9 @@ std::shared_ptr<vpp::Image> vpp::Backend::createTextureImage(std::string path, u
 
     image->generateMipMaps();
 
-    return image;
+    std::shared_ptr<ImageView> imageView = std::make_shared<ImageView>(this, image, 0, (mipLevels ? levels : 1), VK_IMAGE_ASPECT_COLOR_BIT);
+
+    return { image, imageView };
 }
 
 void vpp::Backend::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
