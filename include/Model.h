@@ -86,9 +86,8 @@ namespace vpp
 		std::string directory;
 
 		std::vector<std::unique_ptr<Mesh>> meshes;
-		std::vector<VkImage> textureImages;
-		std::vector<VkDeviceMemory> textureImagesMemory;
-		std::vector<VkImageView> textureImageViews;
+		std::vector<std::shared_ptr<Image>> textureImages;
+		std::vector<std::shared_ptr<ImageView>> textureImageViews;
 		VkSampler textureSampler;
 		std::vector<VkDescriptorSet> descriptorSets;
 		std::vector<uint32_t> mipLevels;

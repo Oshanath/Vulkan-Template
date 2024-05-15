@@ -58,7 +58,6 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
 
     // Populate materials
     textureImages.resize(scene->mNumMaterials);
-    textureImagesMemory.resize(scene->mNumMaterials);
     textureImageViews.resize(scene->mNumMaterials);
     descriptorSets.resize(scene->mNumMaterials);
     mipLevels.resize(scene->mNumMaterials);
@@ -77,7 +76,8 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
             {
                 std::string FullPath = directory + "/" + Path.data;
 
-                backend->createTextureImage(FullPath, textureImages[i], textureImagesMemory[i], textureImageViews[i], &mipLevels[i]);
+                textureImages[i] = backend->createTextureImage(FullPath, &mipLevels[i]);
+                textureImageViews[i] = std::make_shared<ImageView>(backend.get(), textureImages[i], 0, mipLevels[i], VK_IMAGE_ASPECT_COLOR_BIT);
 
                 // Create descriptor set
                 VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };
@@ -93,7 +93,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
 
                 VkDescriptorImageInfo imageInfo = {};
 				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = textureImageViews[i];
+				imageInfo.imageView = textureImageViews[i]->imageView;
 				imageInfo.sampler = textureSampler;
 
 				VkWriteDescriptorSet descriptorWrite = {};
@@ -127,9 +127,8 @@ vpp::Model::~Model()
 
     for (unsigned int i = 0; i < textureImages.size(); i++)
     {
-        vkDestroyImageView(backend->device, textureImageViews[i], nullptr);
-        vkFreeMemory(backend->device, textureImagesMemory[i], nullptr);
-        vkDestroyImage(backend->device, textureImages[i], nullptr);
+        textureImages[i].reset();
+        textureImageViews[i].reset();
     }
 
     vkDestroySampler(backend->device, textureSampler, nullptr);

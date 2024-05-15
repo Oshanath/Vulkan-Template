@@ -5,6 +5,7 @@
 #include <string>
 #include <stb_image.h>
 #include <vector>
+#include <memory>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -17,11 +18,61 @@
 
 namespace vpp
 {
+	class Backend;
+	class Buffer;
+	class Image;
+	class ImageView;
+
 	enum BufferType
 	{
 		CONTINOUS_TRANSFER,
 		ONE_TIME_TRANSFER,
 		GPU_ONLY
+	};
+
+	class Buffer
+	{
+	public:
+		VkBuffer buffer;
+		VkDeviceMemory bufferMemory;
+		VkDeviceSize size;
+		void* mappedPtr;
+		Backend* backend;
+
+		BufferType type;
+
+		Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data);
+		~Buffer();
+
+		static void copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+	};
+
+	class Image
+	{
+	public:
+		Backend* backend;
+		VkImage image;
+		VkDeviceMemory imageMemory;
+		uint32_t mipLevels;
+		VkFormat format;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
+		VkImageType imageType;
+
+		Image(Backend* backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+		~Image();
+	};
+
+	class ImageView
+	{
+	public:
+		Backend* backend;
+		VkImageView imageView; 
+
+		ImageView(Backend* backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags);
+		ImageView(Backend* backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType);
+		~ImageView();
 	};
 
 	class Backend
@@ -41,7 +92,7 @@ namespace vpp
 		VkSwapchainKHR swapChain;
 		std::vector<VkImage> swapChainImages;
 		VkFormat swapChainImageFormat;
-		std::vector<VkImageView> swapChainImageViews;
+		std::vector<std::shared_ptr<ImageView>> swapChainImageViews;
 		VkExtent2D swapChainExtent;
 		VkRenderPass swapChainRenderPass;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -54,36 +105,16 @@ namespace vpp
 		std::vector<VkSemaphore> renderFinishedSemaphores;
 		std::vector<VkFence> inFlightFences;
 
-		VkImage depthImage;
-		VkDeviceMemory depthImageMemory;
-		VkImageView depthImageView;
+		std::shared_ptr<Image> depthImage;
+		std::shared_ptr<ImageView> depthImageView;
 
 		VkCommandBuffer beginSingleTimeCommands();
 		void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		void createTextureImage(std::string path, VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, uint32_t* mipLevels = nullptr);
-		void createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-		VkImageView createImageView(VkImage image, uint32_t mipLevels, VkFormat format, VkImageAspectFlagBits aspectFlags);
+		std::shared_ptr<vpp::Image> createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		void createSampler(VkSampler& textureSampler, uint32_t mipLevels = 0);
 		void generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
-	};
-
-	class Buffer
-	{
-	public:
-		VkBuffer buffer;
-		VkDeviceMemory bufferMemory;
-		VkDeviceSize size;
-		void* mappedPtr;
-		Backend* backend;
-
-		BufferType type;
-
-		Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data);
-		~Buffer();
-
-		static void copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	};
 }
 
