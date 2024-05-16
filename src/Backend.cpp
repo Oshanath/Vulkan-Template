@@ -64,11 +64,11 @@ vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string pa
         throw std::runtime_error("failed to load texture image!");
     }
 
-    Buffer stagingBuffer(this, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr);
+    Buffer stagingBuffer(shared_from_this(), imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr);
     memcpy(stagingBuffer.mappedPtr, pixels, static_cast<size_t>(imageSize));
     stbi_image_free(pixels);
 
-    std::shared_ptr<Image> image = std::make_shared<Image>(this, texWidth, texHeight, 1, (mipLevels ? levels : 1), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    std::shared_ptr<Image> image = std::make_shared<Image>(shared_from_this(), texWidth, texHeight, 1, (mipLevels ? levels : 1), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     // Transition image layout
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -92,7 +92,7 @@ vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string pa
 
     image->generateMipMaps();
 
-    std::shared_ptr<ImageView> imageView = std::make_shared<ImageView>(this, image, 0, (mipLevels ? levels : 1), VK_IMAGE_ASPECT_COLOR_BIT);
+    std::shared_ptr<ImageView> imageView = std::make_shared<ImageView>(shared_from_this(), image, 0, (mipLevels ? levels : 1), VK_IMAGE_ASPECT_COLOR_BIT);
 
     return { image, imageView };
 }
@@ -121,7 +121,7 @@ void vpp::Backend::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wi
     Buffer ----------------------------------------------------
  ------------------------------------------------------------ */
 
-void vpp::Buffer::copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void vpp::Buffer::copyBuffer(std::shared_ptr<vpp::Backend> backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     VkCommandBuffer commandBuffer = backend->beginSingleTimeCommands();
 
@@ -132,7 +132,8 @@ void vpp::Buffer::copyBuffer(vpp::Backend* backend, VkBuffer srcBuffer, VkBuffer
     backend->endSingleTimeCommands(commandBuffer);
 }
 
-vpp::Buffer::Buffer(vpp::Backend* backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data): backend(backend), size(size), type(type)
+vpp::Buffer::Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data): 
+    backend(backend), size(size), type(type)
 {
 
     if (type == GPU_ONLY)
@@ -239,7 +240,7 @@ vpp::Buffer::~Buffer()
 	vkFreeMemory(backend->device, bufferMemory, nullptr);
 }
 
-vpp::Image::Image(Backend* backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties):
+vpp::Image::Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties):
     backend(backend), width(width), height(height), depth(depth), mipLevels(mipLevels), format(format), imageType(depth == 1 ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_3D)
 {
     VkImageCreateInfo imageInfo{};
@@ -347,7 +348,7 @@ void vpp::Image::generateMipMaps()
     backend->endSingleTimeCommands(commandBuffer);
 }
 
-vpp::ImageView::ImageView(Backend* backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags)
+vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags)
     : backend(backend)
 {
     VkImageViewCreateInfo viewInfo{};
@@ -366,7 +367,7 @@ vpp::ImageView::ImageView(Backend* backend, std::shared_ptr<Image> image, uint32
     }
 }
 
-vpp::ImageView::ImageView(Backend* backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType)
+vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType)
     : backend(backend)
 {
     VkImageViewCreateInfo viewInfo{};
@@ -390,7 +391,7 @@ vpp::ImageView::~ImageView()
 	vkDestroyImageView(backend->device, imageView, nullptr);
 }
 
-vpp::Sampler::Sampler(Backend* backend, uint32_t mipLevels):
+vpp::Sampler::Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels):
     backend(backend)
 {
     VkPhysicalDeviceProperties properties{};
@@ -424,7 +425,7 @@ vpp::Sampler::~Sampler()
 	vkDestroySampler(backend->device, sampler, nullptr);
 }
 
-vpp::SuperDescriptorSetLayout::SuperDescriptorSetLayout(Backend* backend):
+vpp::SuperDescriptorSetLayout::SuperDescriptorSetLayout(std::shared_ptr<Backend> backend):
 	backend(backend), layoutCreated(false)
 {
 }
@@ -464,7 +465,7 @@ void vpp::SuperDescriptorSetLayout::createLayout()
     layoutCreated = true;
 }
 
-vpp::SuperDescriptorSet::SuperDescriptorSet(Backend* backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout):
+vpp::SuperDescriptorSet::SuperDescriptorSet(std::shared_ptr<Backend> backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout):
     backend(backend), superDescriptorSetLayout(superDescriptorSetLayout)
 {
     currentBinding = 0;

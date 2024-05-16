@@ -61,7 +61,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
     textureImageViews.resize(scene->mNumMaterials);
     mipLevels.resize(scene->mNumMaterials);
 
-    textureSampler = std::make_shared<Sampler>(backend.get(), 10);
+    textureSampler = std::make_shared<Sampler>(backend, 10);
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -79,7 +79,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
                 textureImages[i] = results.image;
                 textureImageViews[i] = results.imageView;
 
-                superDescriptorSets.push_back(std::make_shared<SuperDescriptorSet>(backend.get(), superDescriptorSetLayout));
+                superDescriptorSets.push_back(std::make_shared<SuperDescriptorSet>(backend, superDescriptorSetLayout));
                 superDescriptorSets[i]->addImageToBinding({textureImageViews[i]}, {textureSampler}, {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
                 superDescriptorSets[i]->createDescriptorSet();
             }
@@ -113,8 +113,8 @@ vpp::Model::~Model()
 vpp::Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
     : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
 {
-    vertexBuffer = std::make_shared<vpp::Buffer>(backend.get(), sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, vertices.data());
-    indexBuffer = std::make_shared<vpp::Buffer>(backend.get(), sizeof(indices[0]) * indices.size(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, indices.data());
+    vertexBuffer = std::make_shared<vpp::Buffer>(backend, sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, vertices.data());
+    indexBuffer = std::make_shared<vpp::Buffer>(backend, sizeof(indices[0]) * indices.size(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, indices.data());
 }
 
 vpp::Mesh::~Mesh()

@@ -291,7 +291,7 @@ void TriangleRenderer::createUniformBuffers()
     VkDeviceSize bufferSize = sizeof(vpp::MVPMatrices);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        uniformBuffers.emplace_back(std::make_shared<vpp::Buffer>(backend.get(), bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr));
+        uniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr));
     }
 }
 

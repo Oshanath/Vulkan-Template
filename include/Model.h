@@ -100,7 +100,7 @@ namespace vpp
 				return;
 
 			superDescriptorSetLayoutCreated = true;
-			superDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend.get());
+			superDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend);
 			superDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 			superDescriptorSetLayout->createLayout();
 		}

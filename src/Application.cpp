@@ -609,7 +609,7 @@ void vpp::Application::createImageViews()
     backend->swapChainImageViews.resize(backend->swapChainImages.size());
 
     for (uint32_t i = 0; i < backend->swapChainImages.size(); i++) {
-        std::shared_ptr<ImageView> temp = std::make_shared<ImageView>(backend.get(), backend->swapChainImages[i], 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, backend->swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D);
+        std::shared_ptr<ImageView> temp = std::make_shared<ImageView>(backend, backend->swapChainImages[i], 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, backend->swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D);
         backend->swapChainImageViews[i] = temp;
     }
 }
@@ -847,6 +847,6 @@ void vpp::Application::createDescriptorPool()
 
 void vpp::Application::createDepthResources()
 {
-    backend->depthImage = std::make_shared<vpp::Image>(backend.get(), backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    backend->depthImageView = std::make_shared<ImageView>(backend.get(), backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    backend->depthImageView = std::make_shared<ImageView>(backend, backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
