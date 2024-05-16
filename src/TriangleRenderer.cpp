@@ -162,7 +162,7 @@ void TriangleRenderer::createGraphicsPipeline()
 
     // Pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, vpp::Model::descriptorSetLayout };
+    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, vpp::Model::getSuperDescriptorSetLayout(backend)->descriptorSetLayout};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 2;
     pipelineLayoutInfo.pSetLayouts = layouts;
@@ -230,7 +230,7 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
         vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], mesh->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
-        vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &model->descriptorSets[mesh->materialIndex], 0, nullptr);
+        vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &model->superDescriptorSets[mesh->materialIndex]->descriptorSet, 0, nullptr);
 
         vkCmdDrawIndexed(backend->commandBuffers[currentFrame], static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
     }

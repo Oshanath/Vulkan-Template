@@ -5,7 +5,7 @@
 vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) : 
     backend(backend), path(path), directory(path.substr(0, path.find_last_of('/')))
 {
-    createDescriptorSetLayout(*backend);
+    createDescriptorSetLayout(backend);
 
     Assimp::Importer importer;
 
@@ -59,7 +59,6 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
     // Populate materials
     textureImages.resize(scene->mNumMaterials);
     textureImageViews.resize(scene->mNumMaterials);
-    descriptorSets.resize(scene->mNumMaterials);
     mipLevels.resize(scene->mNumMaterials);
 
     textureSampler = std::make_shared<Sampler>(backend.get(), 10);
@@ -80,33 +79,9 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
                 textureImages[i] = results.image;
                 textureImageViews[i] = results.imageView;
 
-                // Create descriptor set
-                VkDescriptorSetLayout layouts[] = { getDescriptorSetLayout() };
-                VkDescriptorSetAllocateInfo allocInfo = {};
-                allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-                allocInfo.descriptorPool = backend->descriptorPool;
-                allocInfo.descriptorSetCount = 1;
-                allocInfo.pSetLayouts = layouts;
-
-                if (vkAllocateDescriptorSets(backend->device, &allocInfo, &descriptorSets[i]) != VK_SUCCESS) {
-					throw std::runtime_error("Failed to allocate descriptor sets");
-				}
-
-                VkDescriptorImageInfo imageInfo = {};
-				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = textureImageViews[i]->imageView;
-				imageInfo.sampler = textureSampler->sampler;
-
-				VkWriteDescriptorSet descriptorWrite = {};
-				descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrite.dstSet = descriptorSets[i];
-				descriptorWrite.dstBinding = 0;
-				descriptorWrite.dstArrayElement = 0;
-				descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptorWrite.descriptorCount = 1;
-				descriptorWrite.pImageInfo = &imageInfo;
-
-				vkUpdateDescriptorSets(backend->device, 1, &descriptorWrite, 0, nullptr);
+                superDescriptorSets.push_back(std::make_shared<SuperDescriptorSet>(backend.get(), superDescriptorSetLayout));
+                superDescriptorSets[i]->addImageToBinding({textureImageViews[i]}, {textureSampler}, {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+                superDescriptorSets[i]->createDescriptorSet();
             }
             else
             {
@@ -124,7 +99,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
 
 vpp::Model::~Model()
 {
-    destroyDescriptorSetLayout(*backend);
+    destroyDescriptorSetLayout(backend);
 
     for (unsigned int i = 0; i < textureImages.size(); i++)
     {

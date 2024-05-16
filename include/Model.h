@@ -78,60 +78,53 @@ namespace vpp
 	class Model
 	{
 	public:
-		inline static VkDescriptorSetLayout descriptorSetLayout;
-		inline static bool descriptorSetLayoutCreated = false;
+		
 
 		std::shared_ptr<vpp::Backend> backend;
 		std::string path;
 		std::string directory;
 
+		std::vector<std::shared_ptr<SuperDescriptorSet>> superDescriptorSets;
 		std::vector<std::unique_ptr<Mesh>> meshes;
 		std::vector<std::shared_ptr<Image>> textureImages;
 		std::vector<std::shared_ptr<ImageView>> textureImageViews;
 		std::shared_ptr<vpp::Sampler> textureSampler;
-		std::vector<VkDescriptorSet> descriptorSets;
 		std::vector<uint32_t> mipLevels;
 
 		Model(std::string path, std::shared_ptr<vpp::Backend> backend);
 		~Model();
 
-		inline static void createDescriptorSetLayout(vpp::Backend& backend)
+		inline static void createDescriptorSetLayout(std::shared_ptr<Backend> backend)
 		{
-			if (descriptorSetLayoutCreated)
+			if (superDescriptorSetLayoutCreated)
 				return;
 
-			descriptorSetLayoutCreated = true;
-
-			VkDescriptorSetLayoutBinding dsLayoutBinding = {};
-			dsLayoutBinding.binding = 0;
-			dsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			dsLayoutBinding.descriptorCount = 1;
-			dsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			dsLayoutBinding.pImmutableSamplers = nullptr;
-
-			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = 1;
-			layoutInfo.pBindings = &dsLayoutBinding;
-
-			if (vkCreateDescriptorSetLayout(backend.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-				throw std::runtime_error("Failed to create descriptor set layout");
-			}
+			superDescriptorSetLayoutCreated = true;
+			superDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend.get());
+			superDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+			superDescriptorSetLayout->createLayout();
 		}
 
-		inline static VkDescriptorSetLayout getDescriptorSetLayout()
+		inline static std::shared_ptr<SuperDescriptorSetLayout> getSuperDescriptorSetLayout(std::shared_ptr<Backend> backend)
 		{
-			return descriptorSetLayout;
+			if(!superDescriptorSetLayoutCreated)
+				createDescriptorSetLayout(backend);
+
+			return superDescriptorSetLayout;
 		}
 
-		inline static void destroyDescriptorSetLayout(vpp::Backend& backend)
+		inline static void destroyDescriptorSetLayout(std::shared_ptr<Backend> backend)
 		{
-			if (descriptorSetLayoutCreated)
+			if (superDescriptorSetLayoutCreated)
 			{
-				vkDestroyDescriptorSetLayout(backend.device, descriptorSetLayout, nullptr);
-				descriptorSetLayoutCreated = false;
+				superDescriptorSetLayout.reset();
+				superDescriptorSetLayoutCreated = false;
 			}
 		}
+
+	private:
+		inline static std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout;
+		inline static bool superDescriptorSetLayoutCreated = false;
 	};
 }
 

@@ -14,6 +14,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <unordered_map>
 
 
 namespace vpp
@@ -23,6 +24,8 @@ namespace vpp
 	class Image;
 	class ImageView;
 	class Sampler;
+	class SuperDescriptorSet;
+	class SuperDescriptorSetLayout;
 
 	enum BufferType
 	{
@@ -132,6 +135,48 @@ namespace vpp
 
 		Sampler(Backend* backend, uint32_t mipLevels = 0);
 		~Sampler();
+	};
+
+	class SuperDescriptorSetLayout
+	{
+	public:
+		Backend* backend;
+		VkDescriptorSetLayout descriptorSetLayout;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		SuperDescriptorSetLayout(Backend* backend);
+		~SuperDescriptorSetLayout();
+
+		void addBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount);
+		void createLayout();
+
+		inline VkDescriptorSetLayout getDescriptorSetLayout() { return descriptorSetLayout; }
+		inline bool isLayoutCreated() { return layoutCreated; }
+
+	private:
+		bool layoutCreated;
+	};
+
+	class SuperDescriptorSet
+	{
+	public:
+		Backend* backend;
+		std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout;
+		VkDescriptorSet descriptorSet;
+
+		SuperDescriptorSet(Backend* backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout);
+		~SuperDescriptorSet();
+
+		void addImageToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts);
+		void addBufferToBinding(std::vector<std::shared_ptr<Buffer>> buffers);
+		void createDescriptorSet();
+
+	private:
+		uint32_t currentBinding = 0;
+		std::unique_ptr<std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>>> imageInfos;
+		std::unique_ptr<std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>>> bufferInfos;
+
+
 	};
 }
 

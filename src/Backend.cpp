@@ -423,3 +423,158 @@ vpp::Sampler::~Sampler()
 {
 	vkDestroySampler(backend->device, sampler, nullptr);
 }
+
+vpp::SuperDescriptorSetLayout::SuperDescriptorSetLayout(Backend* backend):
+	backend(backend), layoutCreated(false)
+{
+}
+
+vpp::SuperDescriptorSetLayout::~SuperDescriptorSetLayout()
+{
+	vkDestroyDescriptorSetLayout(backend->device, descriptorSetLayout, nullptr);
+}
+
+void vpp::SuperDescriptorSetLayout::addBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount)
+{
+    if (layoutCreated) throw std::runtime_error("Cannot add binding after layout creation.");
+
+    VkDescriptorSetLayoutBinding layoutBinding{};
+    layoutBinding.binding = bindings.size();
+    layoutBinding.descriptorType = type;
+    layoutBinding.descriptorCount = descriptorCount;
+    layoutBinding.stageFlags = stageFlags;
+    layoutBinding.pImmutableSamplers = nullptr;
+
+    bindings.push_back(layoutBinding);
+}
+
+void vpp::SuperDescriptorSetLayout::createLayout()
+{
+    if (layoutCreated) throw std::runtime_error("Layout already created.");
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
+
+    if (vkCreateDescriptorSetLayout(backend->device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor set layout!");
+    }
+
+    layoutCreated = true;
+}
+
+vpp::SuperDescriptorSet::SuperDescriptorSet(Backend* backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout):
+    backend(backend), superDescriptorSetLayout(superDescriptorSetLayout)
+{
+    currentBinding = 0;
+    imageInfos = std::make_unique<std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>>>();
+    bufferInfos = std::make_unique<std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>>>();
+}
+
+vpp::SuperDescriptorSet::~SuperDescriptorSet()
+{
+}
+
+void vpp::SuperDescriptorSet::addImageToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts)
+{
+    if(!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+
+    if (imageViews.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount || 
+        samplers.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount ||
+        imageLayouts.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount)
+    {
+		throw std::runtime_error("Binding's image view count, sampler count and image layout count must match layout's descriptor count.");
+    }
+
+    if ((superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE))
+    {
+		throw std::runtime_error("Binding's descriptor type must be VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER or VK_DESCRIPTOR_TYPE_STORAGE_IMAGE.");
+    }
+
+    std::vector<VkDescriptorImageInfo> imageInfoVector(superDescriptorSetLayout->bindings[currentBinding].descriptorCount);
+    for (uint32_t i = 0; i < superDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
+	{
+        imageInfoVector[i].imageLayout = imageLayouts[i];
+        imageInfoVector[i].imageView = imageViews[i]->imageView;
+        imageInfoVector[i].sampler = samplers[i]->sampler;
+	}
+    (*imageInfos)[currentBinding] = std::move(imageInfoVector);
+    currentBinding++;
+}
+
+void vpp::SuperDescriptorSet::addBufferToBinding(std::vector<std::shared_ptr<Buffer>> buffers)
+{
+    if (!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+
+    if (buffers.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount)
+    {
+        throw std::runtime_error("Binding's buffer count must match descriptor count.");
+    }
+
+    if ((superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER && superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER))
+    {
+        throw std::runtime_error("Binding's descriptor type must be VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER or VK_DESCRIPTOR_TYPE_STORAGE_BUFFER.");
+    }
+
+    std::vector<VkDescriptorBufferInfo> bufferInfoVector(superDescriptorSetLayout->bindings[currentBinding].descriptorCount);
+    for (uint32_t i = 0; i < superDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
+	{
+		bufferInfoVector[i].buffer = buffers[i]->buffer;
+		bufferInfoVector[i].offset = 0;
+		bufferInfoVector[i].range = buffers[i]->size;
+	}
+	(*bufferInfos)[currentBinding] = std::move(bufferInfoVector);
+    currentBinding++;
+}
+
+void vpp::SuperDescriptorSet::createDescriptorSet()
+{
+    if(!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+
+	if (currentBinding != superDescriptorSetLayout->bindings.size()) throw std::runtime_error("Not all bindings have been filled.");
+	
+    // Allocate descriptor set
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = backend->descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &superDescriptorSetLayout->descriptorSetLayout;
+
+    if (vkAllocateDescriptorSets(backend->device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    // Write descriptor sets
+    std::vector<VkWriteDescriptorSet> descriptorWrites;
+
+    for (uint32_t j = 0; j < superDescriptorSetLayout->bindings.size(); j++)
+    {
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSet;
+        descriptorWrite.dstBinding = j;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = superDescriptorSetLayout->bindings[j].descriptorType;
+        descriptorWrite.descriptorCount = superDescriptorSetLayout->bindings[j].descriptorCount;
+        descriptorWrite.pBufferInfo = nullptr;
+        descriptorWrite.pImageInfo = nullptr;
+        descriptorWrite.pTexelBufferView = nullptr;
+
+        if (superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+        {
+            descriptorWrite.pBufferInfo = bufferInfos->at(j).data();
+        }
+        else if (superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+        {
+            descriptorWrite.pImageInfo = imageInfos->at(j).data();
+        }
+
+        descriptorWrites.push_back(descriptorWrite);
+    }
+
+    vkUpdateDescriptorSets(backend->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+    imageInfos.reset();
+    bufferInfos.reset();
+}
