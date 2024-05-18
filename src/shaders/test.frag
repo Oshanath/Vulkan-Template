@@ -8,10 +8,13 @@ layout(location = 0) in vec2 fragTexCoord;
 
 #define TEXTURE_TYPE_TEXTURE 0
 #define TEXTURE_TYPE_COLOR 1
+#define TEXTURE_TYPE_EMBEDDED 2
 
 layout( push_constant ) uniform constants{
 	mat4 submeshTransform;
+	mat4 modelMatrix;
 	uint materialIndex;
+	uint colorIndex;
 	uint textureType;
 } pushConstants;
 
@@ -31,6 +34,10 @@ void main() {
 		outColor = texture(texSampler[pushConstants.materialIndex], fragTexCoord);
 	}
 	else if(pushConstants.textureType == TEXTURE_TYPE_COLOR){
-		outColor = colors.color[pushConstants.materialIndex];
+		outColor = colors.color[pushConstants.colorIndex];
 	}
+	else if(pushConstants.textureType == TEXTURE_TYPE_EMBEDDED){
+		outColor = texture(texSampler[pushConstants.materialIndex], fragTexCoord);
+	}
+
 }

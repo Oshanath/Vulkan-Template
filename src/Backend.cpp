@@ -56,6 +56,18 @@ vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string pa
 {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    return createTextureImage(pixels, texWidth, texHeight, texChannels, mipLevels);
+}
+
+vpp::TextureImageCreationResults vpp::Backend::createTextureImage(stbi_uc* unloadedPixels, uint32_t size, uint32_t* mipLevels)
+{
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load_from_memory((stbi_uc*)unloadedPixels, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    return createTextureImage(pixels, texWidth, texHeight, texChannels, mipLevels);
+}
+
+vpp::TextureImageCreationResults vpp::Backend::createTextureImage(stbi_uc* pixels, int texWidth, int texHeight, int texChannels, uint32_t* mipLevels)
+{
     VkDeviceSize imageSize = texWidth * texHeight * 4;
     uint32_t levels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
     if (mipLevels) *mipLevels = levels;

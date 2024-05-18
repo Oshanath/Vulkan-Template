@@ -18,6 +18,7 @@ set(VULKAN_TEMPLATE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/Model.cpp
     ${PROJECT_SOURCE_DIR}/src/Camera.cpp
     ${PROJECT_SOURCE_DIR}/src/Backend.cpp
+    ${PROJECT_SOURCE_DIR}/src/CubeMap.cpp
     )
 
 set(SHADER_SOURCES 

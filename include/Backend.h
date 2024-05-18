@@ -77,6 +77,7 @@ namespace vpp
 		VkCommandBuffer beginSingleTimeCommands();
 		void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+		TextureImageCreationResults createTextureImage(stbi_uc*, uint32_t size, uint32_t* mipLevels);
 		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
@@ -92,6 +93,9 @@ namespace vpp
 
 			func(device, &nameInfo);
 		}
+
+	private:
+		vpp::TextureImageCreationResults createTextureImage(stbi_uc*, int texWidth, int texHeight, int texChannels, uint32_t* mipLevels);
 	};
 
 	class Buffer

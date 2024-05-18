@@ -1,5 +1,7 @@
 #include "TriangleRenderer.h"
 
+#include "CubeMap.h"
+
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -9,9 +11,22 @@
 TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) : 
     vpp::Application(app_name, apiVersion, validation_features), camera(glm::vec3(-2907.25, 2827.39, 755.888), glm::vec3(0.0f, 0.0f, 0.0f))
 {
-    //model = std::make_unique<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
-    model = std::make_unique<vpp::Model>("models/trashGod/scene.glb", backend, vpp::FLAT_COLOR);
+
+    sky = std::make_shared<vpp::Model>("models/skyBox/sky.glb", backend, vpp::TextureType::EMBEDDED);
+    models.push_back(sky);
+    sky->scale = glm::vec3(1900.0f);
+
+    //std::shared_ptr<vpp::Model> sponza = std::make_unique<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
+    //models.push_back(sponza);
+
+    std::shared_ptr<vpp::Model> trashGod = std::make_shared<vpp::Model>("models/trashGod/scene.fbx", backend, vpp::FLAT_COLOR);
+    models.push_back(trashGod);
+
     vpp::Model::finishLoadingModels(backend);
+    std::cout << vpp::Model::textureImages.size() << std::endl;
+    std::cout << vpp::Model::colors.size() << std::endl;
+
+    CubeMap cubeMap(backend);
 
     createUniformBuffers();
     initialize();
@@ -246,27 +261,34 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
     vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
 
     MainPushConstants pushConstants;
-    pushConstants.textureType = uint32_t(model->textureType);
-
-    if (model->hasTree)
+    
+    for (auto& model : models)
     {
-        for (auto& node : model->nodes)
-        {
-			pushConstants.submeshTransform = node.transform;
-			pushConstants.materialIndex = model->meshes[node.meshIndex].materialIndex;
-			vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
-			vkCmdDrawIndexed(backend->commandBuffers[currentFrame], model->meshes[node.meshIndex].indexCount, 1, model->meshes[node.meshIndex].startIndex, 0, 0);
-		}
-    }
-    else
-    {
-        pushConstants.submeshTransform = glm::mat4(1.0f);
+        pushConstants.textureType = uint32_t(model->textureType);
+        pushConstants.modelTransform = model->getModelMatrix();
 
-        for (auto& mesh : model->meshes)
+        if (model->hasTree)
         {
-            pushConstants.materialIndex = mesh.materialIndex;
-            vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
-            vkCmdDrawIndexed(backend->commandBuffers[currentFrame], mesh.indexCount, 1, mesh.startIndex, 0, 0);
+            for (auto& node : model->nodes)
+            {
+                pushConstants.submeshTransform = node.transform;
+                pushConstants.materialIndex = model->meshes[node.meshIndex].materialIndex;
+                pushConstants.colorIndex = model->meshes[node.meshIndex].colorIndex;
+                vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
+                vkCmdDrawIndexed(backend->commandBuffers[currentFrame], model->meshes[node.meshIndex].indexCount, 1, model->meshes[node.meshIndex].startIndex, 0, 0);
+            }
+        }
+        else
+        {
+            pushConstants.submeshTransform = glm::mat4(1.0f);
+
+            for (auto& mesh : model->meshes)
+            {
+                pushConstants.materialIndex = mesh.materialIndex;
+                pushConstants.colorIndex = mesh.colorIndex;
+                vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
+                vkCmdDrawIndexed(backend->commandBuffers[currentFrame], mesh.indexCount, 1, mesh.startIndex, 0, 0);
+            }
         }
     }
 
@@ -317,6 +339,12 @@ void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageI
 {
     camera.deltaTime = deltaTime;
     camera.move();
+
+    if (sky.get() != nullptr)
+    {
+        sky->position = camera.position;
+	}
+
     updateUniformBuffers(currentFrame);
     recordCommandBuffer(currentFrame, imageIndex);
 }

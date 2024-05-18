@@ -27,9 +27,22 @@ void vpp::Model::processNode(aiNode* node, const aiScene* scene, glm::mat4 paren
     }
 }
 
+glm::mat4 vpp::Model::getModelMatrix()
+{
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, position);
+    model = glm::rotate(model, glm::radians(rotationAngleAxis.first), rotationAngleAxis.second);
+    model = glm::scale(model, scale);
+	return model;
+}
+
 vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, TextureType textureType) :
     backend(backend), path(path), directory(path.substr(0, path.find_last_of('/'))), textureType(textureType)
 {
+    position = glm::vec3(0.0f);
+    scale = glm::vec3(1.0f);
+    rotationAngleAxis = { 0.0f, glm::vec3(0.0f, 1.0f, 0.0f) };
+
     Assimp::Importer importer;
 
     const aiScene* scene = importer.ReadFile(path,
@@ -38,13 +51,13 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
         aiProcess_JoinIdenticalVertices |
         aiProcess_SortByPType);
 
+    std::cout << scene->HasTextures() << std::endl;
+
     aiNode* root = scene->mRootNode;
     hasTree = root->mNumChildren > 0;
 
     if(hasTree)
         processNode(root, scene, glm::mat4(1.0f));
-
-    std::cout << "Model has " << nodes.size() << " nodes\n";
 
     if (nullptr == scene) {
         throw std::runtime_error("Failed to load model");
@@ -57,6 +70,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
 
         Mesh mesh;
         mesh.materialIndex = aiMesh->mMaterialIndex + textureImages.size();
+        mesh.colorIndex = aiMesh->mMaterialIndex + colors.size();
         mesh.vertexCount = aiMesh->mNumVertices;
         mesh.indexCount = aiMesh->mNumFaces * 3;
         mesh.startVertex = vertices.size();
@@ -92,8 +106,32 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
 		}
 	}
 
-    // Populate materials
-    mipLevels.resize(mipLevels.size() + scene->mNumMaterials);
+    // embedded textures
+    if (textureType == EMBEDDED)
+    {
+        mipLevels.resize(mipLevels.size() + scene->mNumTextures);
+
+        for (unsigned int i = 0; i < scene->mNumTextures; i++)
+        {
+			aiTexture* texture = scene->mTextures[i];
+			
+            // if compressed
+            if (texture->mHeight == 0)
+            {
+                if (texture->CheckFormat("jpg"))
+                {
+                    vpp::TextureImageCreationResults result = backend->createTextureImage((stbi_uc*)texture->pcData, texture->mWidth, &mipLevels[i]);
+                    textureImages.push_back(result.image);
+                    textureImageViews.push_back(result.imageView);
+                }
+            }
+		}
+	}
+
+    if (textureType == vpp::TEXTURE)
+    {
+        mipLevels.resize(mipLevels.size() + scene->mNumMaterials);
+    }
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -101,12 +139,27 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
         
         if (textureType == FLAT_COLOR)
         {
-            aiColor3D color;
-            material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
-            colors.push_back(glm::vec4(color.r, color.g, color.b, 1.0f));
+            aiColor3D diffuse;
+            material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
+            colors.push_back(glm::vec4(diffuse.r, diffuse.g, diffuse.b, 1.0f));
+
+            aiColor3D specular;
+            material->Get(AI_MATKEY_COLOR_SPECULAR, specular);
+
+            aiColor3D ambient;
+            material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
+
+            aiColor3D emissive;
+            material->Get(AI_MATKEY_COLOR_EMISSIVE, emissive);
+
+            aiColor3D transparent;
+            material->Get(AI_MATKEY_COLOR_TRANSPARENT, transparent);
+
+            aiColor3D reflective;
+            material->Get(AI_MATKEY_COLOR_REFLECTIVE, reflective);
         }
 
-        else if (textureType == TEXTURE)
+        else if (textureType == TEXTURE || textureType == EMBEDDED)
         {
             if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
             {
@@ -114,11 +167,19 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
 
                 if (material->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
                 {
-                    std::string FullPath = directory + "/" + Path.data;
+                    if (textureType == TEXTURE)
+                    {
+                        std::string FullPath = directory + "/" + Path.data;
 
-                    vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
-                    textureImages.push_back(results.image);
-                    textureImageViews.push_back(results.imageView);
+                        vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
+                        textureImages.push_back(results.image);
+                        textureImageViews.push_back(results.imageView);
+                    }
+                    else if (textureType == EMBEDDED)
+                    {
+						// Remove the first char from Path and convert the rest to an int
+                        int index = std::stoi(Path.data + 1);
+					}
                 }
                 else
                 {

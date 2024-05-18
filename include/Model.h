@@ -57,6 +57,7 @@ namespace vpp
 	struct Mesh
 	{
 		uint32_t materialIndex;
+		uint32_t colorIndex;
 		uint32_t vertexCount;
 		uint32_t indexCount;
 		uint32_t startIndex;
@@ -72,7 +73,8 @@ namespace vpp
 	enum TextureType
 	{
 		TEXTURE,
-		FLAT_COLOR
+		FLAT_COLOR,
+		EMBEDDED
 	};
 
 	class Model
@@ -89,7 +91,13 @@ namespace vpp
 		TextureType textureType;
 		bool hasTree;
 
+		glm::vec3 position;
+		glm::vec3 scale;
+		std::pair<float, glm::vec3> rotationAngleAxis;
+
 		Model(std::string path, std::shared_ptr<vpp::Backend> backend, TextureType textureType);
+
+		glm::mat4 getModelMatrix();
 
 		inline static std::shared_ptr<SuperDescriptorSetLayout> getTextureDescriptorSetLayout()
 		{
@@ -229,6 +237,9 @@ namespace vpp
 			finished = false;
 		}
 
+		inline static std::vector<std::shared_ptr<Image>> textureImages;
+		inline static std::vector<glm::vec4> colors;
+
 	private:
 		inline static std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout;
 		inline static std::shared_ptr<SuperDescriptorSetLayout> colorDescriptorSetLayout;
@@ -239,13 +250,11 @@ namespace vpp
 		inline static std::vector<Vertex> vertices;
 		inline static std::vector<uint32_t> indices;
 
-		inline static std::vector<std::shared_ptr<Image>> textureImages;
 		inline static std::vector<std::shared_ptr<ImageView>> textureImageViews;
 		inline static std::shared_ptr<SuperDescriptorSet> textureDescriptorSet;
 		inline static std::vector<uint32_t> mipLevels;
 		inline static std::shared_ptr<vpp::Sampler> textureSampler;
 
-		inline static std::vector<glm::vec4> colors;
 		inline static std::shared_ptr<Buffer> colorBuffer;
 		inline static std::shared_ptr<SuperDescriptorSet> colorDescriptorSet;
 

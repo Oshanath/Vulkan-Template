@@ -15,7 +15,9 @@ layout(set = 0, binding = 1) uniform model {
 
 layout( push_constant ) uniform constants{
 	mat4 submeshTransform;
+	mat4 modelMatrix;
 	uint materialIndex;
+	uint colorIndex;
 	uint textureType;
 } pushConstants;
 
@@ -26,6 +28,6 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 0) out vec2 fragTexCoord;
 
 void main() {
-    gl_Position = viewProjectionUBO.proj * viewProjectionUBO.view * modelUBO.model * pushConstants.submeshTransform * vec4(inPosition, 1.0);
+    gl_Position = viewProjectionUBO.proj * viewProjectionUBO.view * pushConstants.modelMatrix * pushConstants.submeshTransform * vec4(inPosition, 1.0);
     fragTexCoord = inTexCoord;
 }

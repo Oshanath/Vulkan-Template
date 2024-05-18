@@ -8,7 +8,9 @@
 struct MainPushConstants
 {
 	glm::mat4 submeshTransform;
+	glm::mat4 modelTransform;
 	uint32_t materialIndex;
+	uint32_t colorIndex;
 	uint32_t textureType;
 };
 
@@ -17,7 +19,8 @@ class TriangleRenderer : public vpp::Application
 private:
 
 	vpp::Camera camera;
-	std::unique_ptr<vpp::Model> model;
+	std::vector<std::shared_ptr<vpp::Model>> models;
+	std::shared_ptr<vpp::Model> sky;
 
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;
