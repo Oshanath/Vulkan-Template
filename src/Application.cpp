@@ -431,6 +431,10 @@ void vpp::Application::createLogicalDevice()
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    VkPhysicalDeviceVulkan12Features vulkan12Features{};
+    vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12Features.runtimeDescriptorArray = VK_TRUE;
+
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
 
@@ -441,6 +445,7 @@ void vpp::Application::createLogicalDevice()
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    createInfo.pNext = &vulkan12Features;
 
     if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
@@ -609,7 +614,7 @@ void vpp::Application::createImageViews()
     backend->swapChainImageViews.resize(backend->swapChainImages.size());
 
     for (uint32_t i = 0; i < backend->swapChainImages.size(); i++) {
-        std::shared_ptr<ImageView> temp = std::make_shared<ImageView>(backend, backend->swapChainImages[i], 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, backend->swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D);
+        std::shared_ptr<ImageView> temp = std::make_shared<ImageView>(backend, backend->swapChainImages[i], 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, backend->swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D, "Swapchain Image view" + std::to_string(i));
         backend->swapChainImageViews[i] = temp;
     }
 }
@@ -629,19 +634,6 @@ std::vector<char> vpp::Application::readFile(const std::string& filename)
     file.close();
 
     return buffer;
-}
-
-void vpp::Application::setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
-{
-    auto func = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(backend->instance, "vkSetDebugUtilsObjectNameEXT");
-
-    VkDebugUtilsObjectNameInfoEXT nameInfo{};
-    nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-    nameInfo.objectType = type;
-    nameInfo.objectHandle = objectHandle;
-    nameInfo.pObjectName = name.c_str();
-
-    func(backend->device, &nameInfo);
 }
 
 void vpp::Application::createCommandPool()
@@ -847,6 +839,6 @@ void vpp::Application::createDescriptorPool()
 
 void vpp::Application::createDepthResources()
 {
-    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    backend->depthImageView = std::make_shared<ImageView>(backend, backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Swapchain depth image");
+    backend->depthImageView = std::make_shared<ImageView>(backend, backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT, "Swapchain depth image view");
 }

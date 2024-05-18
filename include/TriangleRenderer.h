@@ -5,6 +5,13 @@
 #include <array>
 #include "Model.h"
 
+struct MainPushConstants
+{
+	glm::mat4 submeshTransform;
+	uint32_t materialIndex;
+	uint32_t textureType;
+};
+
 class TriangleRenderer : public vpp::Application
 {
 private:
@@ -15,13 +22,14 @@ private:
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;
 
-	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
-	std::vector<std::shared_ptr<vpp::Buffer>> uniformBuffers;
+	std::vector<std::shared_ptr<vpp::Buffer>> viewProjectionUniformBuffers;
+	std::vector<std::shared_ptr<vpp::Buffer>> modelUniformBuffers;
 
-	std::vector<VkDescriptorSet> descriptorSets;
+	std::shared_ptr<vpp::SuperDescriptorSetLayout> modelViewProjectionDescriptorSetLayout;
+	std::vector< std::shared_ptr<vpp::SuperDescriptorSet>> modelViewProjectionDescriptorSets;
 
 public:
 	TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
@@ -34,8 +42,8 @@ public:
 	void beginRenderPass(uint32_t currentFrame, uint32_t imageIndex);
 	void setDynamicState();
 	void createUniformBuffers();
-	void createDescriptorSetLayout();
-	void updateUniformBuffer(uint32_t currentFrame);
+	void initialize();
+	void updateUniformBuffers(uint32_t currentFrame);
 	void createDescriptorSets();
 	void key_callback_extended(GLFWwindow* window, int key, int scancode, int action, int mods, double deltaTime) override;
 	void mouse_callback_extended(GLFWwindow* window, int button, int action, int mods, double deltaTime) override;

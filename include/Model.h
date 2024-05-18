@@ -54,25 +54,25 @@ namespace vpp
 		}
 	};
 
-	class Mesh
+	struct Mesh
 	{
-	public:
-		std::shared_ptr<vpp::Backend> backend;
-
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
 		uint32_t materialIndex;
+		uint32_t vertexCount;
+		uint32_t indexCount;
+		uint32_t startIndex;
+		uint32_t startVertex;
+	};
 
-		std::shared_ptr<vpp::Buffer> vertexBuffer;
-		std::shared_ptr<vpp::Buffer> indexBuffer;
-		VkDeviceMemory indexBufferMemry;
+	struct Node
+	{
+		uint32_t meshIndex;
+		glm::mat4 transform;
+	};
 
-		Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex);
-		~Mesh();
-
-	private:
-		void createVertexBuffer();
-		void createIndexBuffer();
+	enum TextureType
+	{
+		TEXTURE,
+		FLAT_COLOR
 	};
 
 	class Model
@@ -84,47 +84,183 @@ namespace vpp
 		std::string path;
 		std::string directory;
 
-		std::vector<std::shared_ptr<SuperDescriptorSet>> superDescriptorSets;
-		std::vector<std::unique_ptr<Mesh>> meshes;
-		std::vector<std::shared_ptr<Image>> textureImages;
-		std::vector<std::shared_ptr<ImageView>> textureImageViews;
-		std::shared_ptr<vpp::Sampler> textureSampler;
-		std::vector<uint32_t> mipLevels;
+		std::vector<Mesh> meshes;
+		std::vector<Node> nodes;
+		TextureType textureType;
+		bool hasTree;
 
-		Model(std::string path, std::shared_ptr<vpp::Backend> backend);
-		~Model();
+		Model(std::string path, std::shared_ptr<vpp::Backend> backend, TextureType textureType);
 
-		inline static void createDescriptorSetLayout(std::shared_ptr<Backend> backend)
+		inline static std::shared_ptr<SuperDescriptorSetLayout> getTextureDescriptorSetLayout()
 		{
-			if (superDescriptorSetLayoutCreated)
-				return;
-
-			superDescriptorSetLayoutCreated = true;
-			superDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend);
-			superDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-			superDescriptorSetLayout->createLayout();
-		}
-
-		inline static std::shared_ptr<SuperDescriptorSetLayout> getSuperDescriptorSetLayout(std::shared_ptr<Backend> backend)
-		{
-			if(!superDescriptorSetLayoutCreated)
-				createDescriptorSetLayout(backend);
-
-			return superDescriptorSetLayout;
-		}
-
-		inline static void destroyDescriptorSetLayout(std::shared_ptr<Backend> backend)
-		{
-			if (superDescriptorSetLayoutCreated)
+			if (!finished)
 			{
-				superDescriptorSetLayout.reset();
-				superDescriptorSetLayoutCreated = false;
+				throw std::runtime_error("Models not loaded");
 			}
+
+			return textureDescriptorSetLayout;
+		}
+
+		inline static std::shared_ptr<SuperDescriptorSetLayout> getColorDescriptorSetLayout()
+		{
+			if (!finished)
+			{
+				throw std::runtime_error("Models not loaded");
+			}
+
+			return colorDescriptorSetLayout;
+		}
+
+		inline static std::shared_ptr<SuperDescriptorSet> getTextureDescriptorSet()
+		{
+			if (!initialized)
+				throw std::runtime_error("Models not loaded");
+
+			return textureDescriptorSet;
+		}
+
+		inline static std::shared_ptr<SuperDescriptorSet> getColorDescriptorSet()
+		{
+			if (!initialized)
+				throw std::runtime_error("Models not loaded");
+
+			return colorDescriptorSet;
+		}
+
+		inline static void finishLoadingModels(std::shared_ptr<Backend> backend)
+		{
+			if(vertices.size() == 0) throw std::runtime_error("No models loaded");
+
+			if(!initialized) throw std::runtime_error("Models not loaded");
+
+			if(finished) throw std::runtime_error("Models already Loaded");
+
+			vertexBuffer = std::make_shared<Buffer>(backend, vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, vertices.data(), "Vertex Buffer");
+			indexBuffer = std::make_shared<Buffer>(backend, indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, indices.data(), "Index Buffer");
+
+			// Sampler
+			textureSampler = std::make_shared<Sampler>(backend, 10, "Texture Sampler");
+
+			// create layouts and descriptor sets
+			textureDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend, "Texture descriptor set layout");
+			textureDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, (textureImages.size() == 0) ? 1 : textureImages.size());
+			textureDescriptorSetLayout->createLayout();
+
+			colorDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend, "Color descriptor set layout");
+			colorDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+			colorDescriptorSetLayout->createLayout();
+
+			if (textureImages.size() > 0)
+			{
+				textureDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, textureDescriptorSetLayout, "Texture descriptor set");
+				textureDescriptorSet->addImagesToBinding(textureImageViews, std::vector<std::shared_ptr<Sampler>>(textureImages.size(), textureSampler), std::vector<VkImageLayout>(textureImages.size(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+				textureDescriptorSet->createDescriptorSet();
+			}
+			else
+			{
+				defaultImage = std::make_shared<Image>(backend, 1, 1,1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Default image");
+				defaultImageView = std::make_shared<ImageView>(backend, defaultImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Default Image View");
+
+				textureDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, textureDescriptorSetLayout, "Texture descriptor set");
+				textureDescriptorSet->addImagesToBinding({ defaultImageView }, {textureSampler}, {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+				textureDescriptorSet->createDescriptorSet();
+			}
+
+			if(colors.size() > 0)
+			{
+				colorBuffer = std::make_shared<Buffer>(backend, colors.size() * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, colors.data(), "Color Buffer");
+
+				colorDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, colorDescriptorSetLayout, "Color descriptor set");
+				colorDescriptorSet->addBuffersToBinding({ colorBuffer });
+				colorDescriptorSet->createDescriptorSet();
+			}
+			else
+			{
+				defaultBuffer = std::make_shared<Buffer>(backend, 1, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::GPU_ONLY, nullptr, "Default SSBO");
+
+				colorDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, colorDescriptorSetLayout, "Color descriptor set");
+				colorDescriptorSet->addBuffersToBinding({ defaultBuffer });
+				colorDescriptorSet->createDescriptorSet();
+			}
+
+			finished = true;
+		}
+
+		inline static std::shared_ptr<Buffer> getVertexBuffer()
+		{
+			if (!initialized)
+				throw std::runtime_error("Models not loaded");
+
+			if (!finished)
+				throw std::runtime_error("Models not finished loading");
+
+			return vertexBuffer;
+		}
+
+		inline static std::shared_ptr<Buffer> getIndexBuffer()
+		{
+			if (!initialized)
+				throw std::runtime_error("Models not loaded");
+
+			if (!finished)
+				throw std::runtime_error("Models not finished loading");
+
+			return indexBuffer;
+		}
+
+		inline static void destroyModels(std::shared_ptr<Backend> backend)
+		{
+			textureDescriptorSet.reset();
+			textureDescriptorSetLayout.reset();
+			colorDescriptorSet.reset();
+			colorDescriptorSetLayout.reset();
+
+			textureImages.clear();
+			textureImageViews.clear();
+			textureSampler.reset();
+			vertexBuffer.reset();
+			indexBuffer.reset();
+			colorBuffer.reset();
+			defaultImage.reset();
+			defaultImageView.reset();
+			defaultBuffer.reset();
+
+			initialized = false;
+			finished = false;
 		}
 
 	private:
-		inline static std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout;
+		inline static std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout;
+		inline static std::shared_ptr<SuperDescriptorSetLayout> colorDescriptorSetLayout;
 		inline static bool superDescriptorSetLayoutCreated = false;
+
+		inline static uint32_t globalMaterialCount = 0;
+
+		inline static std::vector<Vertex> vertices;
+		inline static std::vector<uint32_t> indices;
+
+		inline static std::vector<std::shared_ptr<Image>> textureImages;
+		inline static std::vector<std::shared_ptr<ImageView>> textureImageViews;
+		inline static std::shared_ptr<SuperDescriptorSet> textureDescriptorSet;
+		inline static std::vector<uint32_t> mipLevels;
+		inline static std::shared_ptr<vpp::Sampler> textureSampler;
+
+		inline static std::vector<glm::vec4> colors;
+		inline static std::shared_ptr<Buffer> colorBuffer;
+		inline static std::shared_ptr<SuperDescriptorSet> colorDescriptorSet;
+
+		inline static std::shared_ptr<Buffer> vertexBuffer;
+		inline static std::shared_ptr<Buffer> indexBuffer;
+
+		inline static bool initialized = false;
+		inline static bool finished = false;
+
+		inline static std::shared_ptr<Image> defaultImage;
+		inline static std::shared_ptr<ImageView> defaultImageView;
+		inline static std::shared_ptr<Buffer> defaultBuffer;
+
+		void processNode(aiNode* node, const aiScene* scene, glm::mat4 parentTransform);
+
 	};
 }
 

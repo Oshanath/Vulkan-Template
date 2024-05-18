@@ -11,9 +11,9 @@ vpp::Camera::Camera(glm::vec3 position, glm::vec3 target)
 	this->up = glm::normalize(glm::cross(this->right, this->front));
 }
 
-vpp::MVPMatrices vpp::Camera::getMVPMatrices(float width, float height)
+vpp::ViewProjectionMatrices vpp::Camera::getMVPMatrices(float width, float height)
 {
-	MVPMatrices matrices;
+	ViewProjectionMatrices matrices;
 
 	matrices.view = glm::lookAt(this->position, this->position + this->front, this->up);
 	matrices.proj = glm::perspective(glm::radians(45.0f), width / height, 10.0f, 1000000.0f);
@@ -52,16 +52,31 @@ void vpp::Camera::move()
 
 void vpp::Camera::mouse_callback(double xpos, double ypos)
 {
-	if (freeLook)
+	static bool firstTime = true;
+
+	static double lastX;
+	static double lastY;
+
+	static double xoffset;
+	static double yoffset;
+
+	if (firstTime)
 	{
-		static double lastX = xpos;
-		static double lastY = ypos;
-
-		double xoffset = lastX - xpos;
-		double yoffset = lastY - ypos;
-
 		lastX = xpos;
 		lastY = ypos;
+		firstTime = false;
+	}
+
+	if (freeLook)
+	{
+		double currentX = xpos;
+		double currentY = ypos;
+
+		xoffset = lastX - currentX;
+		yoffset = lastY - currentY;
+
+		lastX = currentX;
+		lastY = currentY;
 
 		float sensitivity = 0.1f;
 		xoffset *= sensitivity;
@@ -71,5 +86,10 @@ void vpp::Camera::mouse_callback(double xpos, double ypos)
 		this->front = glm::normalize(glm::rotate(glm::mat4(1.0f), glm::radians((float)yoffset), this->right) * glm::vec4(this->front, 0.0f));
 		this->right = glm::normalize(glm::cross(this->front, this->worldUp));
 		this->up = glm::normalize(glm::cross(this->right, this->front));
+	}
+
+	else
+	{
+		firstTime = true;
 	}
 }

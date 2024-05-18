@@ -2,11 +2,34 @@
 
 #include <stdexcept>
 
-vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) : 
-    backend(backend), path(path), directory(path.substr(0, path.find_last_of('/')))
+glm::mat4 convertMatrix(const aiMatrix4x4& aiMat)
 {
-    createDescriptorSetLayout(backend);
+    return {
+        aiMat.a1, aiMat.b1, aiMat.c1, aiMat.d1,
+        aiMat.a2, aiMat.b2, aiMat.c2, aiMat.d2,
+        aiMat.a3, aiMat.b3, aiMat.c3, aiMat.d3,
+        aiMat.a4, aiMat.b4, aiMat.c4, aiMat.d4
+    };
+}
 
+void vpp::Model::processNode(aiNode* node, const aiScene* scene, glm::mat4 parentTransform)
+{
+    glm::mat4 transform = parentTransform * convertMatrix(node->mTransformation);
+
+    for (unsigned int i = 0; i < node->mNumMeshes; i++)
+    {
+        nodes.push_back({ node->mMeshes[i], transform });
+    }
+
+    for (unsigned int i = 0; i < node->mNumChildren; i++)
+    {
+        processNode(node->mChildren[i], scene, transform);
+    }
+}
+
+vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, TextureType textureType) :
+    backend(backend), path(path), directory(path.substr(0, path.find_last_of('/'))), textureType(textureType)
+{
     Assimp::Importer importer;
 
     const aiScene* scene = importer.ReadFile(path,
@@ -15,6 +38,14 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
         aiProcess_JoinIdenticalVertices |
         aiProcess_SortByPType);
 
+    aiNode* root = scene->mRootNode;
+    hasTree = root->mNumChildren > 0;
+
+    if(hasTree)
+        processNode(root, scene, glm::mat4(1.0f));
+
+    std::cout << "Model has " << nodes.size() << " nodes\n";
+
     if (nullptr == scene) {
         throw std::runtime_error("Failed to load model");
     }
@@ -22,25 +53,32 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
     // Populate vertices and indices
     for (unsigned int i = 0; i < scene->mNumMeshes; i++) 
     {
-		const aiMesh* mesh = scene->mMeshes[i];
-        uint32_t materialIndex = mesh->mMaterialIndex;
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
+		const aiMesh* aiMesh = scene->mMeshes[i];
 
-        for (unsigned int j = 0; j < mesh->mNumVertices; j++) 
+        Mesh mesh;
+        mesh.materialIndex = aiMesh->mMaterialIndex + textureImages.size();
+        mesh.vertexCount = aiMesh->mNumVertices;
+        mesh.indexCount = aiMesh->mNumFaces * 3;
+        mesh.startVertex = vertices.size();
+        mesh.startIndex = indices.size();
+        meshes.push_back(mesh);
+
+        uint32_t indexBias = vertices.size();
+
+        for (unsigned int j = 0; j < aiMesh->mNumVertices; j++) 
         {
 			Vertex vertex = {};
-			vertex.pos = glm::vec3(mesh->mVertices[j].x, mesh->mVertices[j].y, mesh->mVertices[j].z);
-			vertex.normal = glm::vec3(mesh->mNormals[j].x, mesh->mNormals[j].y, mesh->mNormals[j].z);
-            if (mesh->mTextureCoords[0]) {
-				vertex.texCoord = mesh->HasTextureCoords(0) ? glm::vec2(mesh->mTextureCoords[0][j].x, 1-mesh->mTextureCoords[0][j].y) : glm::vec2(0.0f, 0.0f);
+			vertex.pos = glm::vec3(aiMesh->mVertices[j].x, aiMesh->mVertices[j].y, aiMesh->mVertices[j].z);
+			vertex.normal = glm::vec3(aiMesh->mNormals[j].x, aiMesh->mNormals[j].y, aiMesh->mNormals[j].z);
+            if (aiMesh->mTextureCoords[0]) {
+				vertex.texCoord = aiMesh->HasTextureCoords(0) ? glm::vec2(aiMesh->mTextureCoords[0][j].x, 1-aiMesh->mTextureCoords[0][j].y) : glm::vec2(0.0f, 0.0f);
 			}
 			vertices.push_back(vertex);
 		}
 
-        for (unsigned int j = 0; j < mesh->mNumFaces; j++) 
+        for (unsigned int j = 0; j < aiMesh->mNumFaces; j++) 
         {
-			const aiFace& face = mesh->mFaces[j];
+			const aiFace& face = aiMesh->mFaces[j];
 
             if (face.mNumIndices != 3)
             {
@@ -49,84 +87,51 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend) :
 
             for (unsigned int k = 0; k < face.mNumIndices; k++) 
             {
-				indices.push_back(face.mIndices[k]);
+				indices.push_back(face.mIndices[k] + indexBias);
 			}
 		}
-
-        meshes.emplace_back(std::make_unique<Mesh>(backend, std::move(vertices), std::move(indices), materialIndex));
 	}
 
     // Populate materials
-    textureImages.resize(scene->mNumMaterials);
-    textureImageViews.resize(scene->mNumMaterials);
-    mipLevels.resize(scene->mNumMaterials);
-
-    textureSampler = std::make_shared<Sampler>(backend, 10);
+    mipLevels.resize(mipLevels.size() + scene->mNumMaterials);
 
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
         const aiMaterial* material = scene->mMaterials[i];
-
-        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) 
+        
+        if (textureType == FLAT_COLOR)
         {
-            aiString Path;
+            aiColor3D color;
+            material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+            colors.push_back(glm::vec4(color.r, color.g, color.b, 1.0f));
+        }
 
-            if (material->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS) 
+        else if (textureType == TEXTURE)
+        {
+            if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
             {
-                std::string FullPath = directory + "/" + Path.data;
+                aiString Path;
 
-                vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
-                textureImages[i] = results.image;
-                textureImageViews[i] = results.imageView;
+                if (material->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
+                {
+                    std::string FullPath = directory + "/" + Path.data;
 
-                superDescriptorSets.push_back(std::make_shared<SuperDescriptorSet>(backend, superDescriptorSetLayout));
-                superDescriptorSets[i]->addImageToBinding({textureImageViews[i]}, {textureSampler}, {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
-                superDescriptorSets[i]->createDescriptorSet();
+                    vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
+                    textureImages.push_back(results.image);
+                    textureImageViews.push_back(results.imageView);
+                }
+                else
+                {
+                    throw std::runtime_error("Texture path retrieval failed");
+                }
             }
             else
             {
-                throw std::runtime_error("Texture path retrieval failed");
+                std::cout << "Material has no diffuse texture\n";
+                break;
             }
         }
-        else
-        {
-            std::cout << "Material has no diffuse texture\n";
-            break;
-        }
     }
 
-}
-
-vpp::Model::~Model()
-{
-    destroyDescriptorSetLayout(backend);
-
-    for (unsigned int i = 0; i < textureImages.size(); i++)
-    {
-        textureImages[i].reset();
-        textureImageViews[i].reset();
-    }
-
-    textureSampler.reset();
-}
-
-vpp::Mesh::Mesh(std::shared_ptr<vpp::Backend> backend, std::vector<Vertex>&& vertices, std::vector<uint32_t>&& indices, uint32_t materialIndex)
-    : backend(backend), vertices(vertices), indices(indices), materialIndex(materialIndex)
-{
-    vertexBuffer = std::make_shared<vpp::Buffer>(backend, sizeof(vertices[0]) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, vertices.data());
-    indexBuffer = std::make_shared<vpp::Buffer>(backend, sizeof(indices[0]) * indices.size(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, indices.data());
-}
-
-vpp::Mesh::~Mesh()
-{
-    vertexBuffer.reset();
-    indexBuffer.reset();
-}
-
-void vpp::Mesh::createVertexBuffer()
-{
-}
-
-void vpp::Mesh::createIndexBuffer()
-{
+    initialized = true;
 }

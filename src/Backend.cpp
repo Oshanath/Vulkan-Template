@@ -64,11 +64,11 @@ vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string pa
         throw std::runtime_error("failed to load texture image!");
     }
 
-    Buffer stagingBuffer(shared_from_this(), imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr);
+    Buffer stagingBuffer(shared_from_this(), imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr, "Staging buffer for texture");
     memcpy(stagingBuffer.mappedPtr, pixels, static_cast<size_t>(imageSize));
     stbi_image_free(pixels);
 
-    std::shared_ptr<Image> image = std::make_shared<Image>(shared_from_this(), texWidth, texHeight, 1, (mipLevels ? levels : 1), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    std::shared_ptr<Image> image = std::make_shared<Image>(shared_from_this(), texWidth, texHeight, 1, (mipLevels ? levels : 1), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Texture image");
 
     // Transition image layout
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -92,7 +92,7 @@ vpp::TextureImageCreationResults vpp::Backend::createTextureImage(std::string pa
 
     image->generateMipMaps();
 
-    std::shared_ptr<ImageView> imageView = std::make_shared<ImageView>(shared_from_this(), image, 0, (mipLevels ? levels : 1), VK_IMAGE_ASPECT_COLOR_BIT);
+    std::shared_ptr<ImageView> imageView = std::make_shared<ImageView>(shared_from_this(), image, 0, (mipLevels ? levels : 1), VK_IMAGE_ASPECT_COLOR_BIT, "Texture image view");
 
     return { image, imageView };
 }
@@ -132,7 +132,7 @@ void vpp::Buffer::copyBuffer(std::shared_ptr<vpp::Backend> backend, VkBuffer src
     backend->endSingleTimeCommands(commandBuffer);
 }
 
-vpp::Buffer::Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data): 
+vpp::Buffer::Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data, std::string name):
     backend(backend), size(size), type(type)
 {
 
@@ -197,7 +197,7 @@ vpp::Buffer::Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, Vk
 
     else if (type == ONE_TIME_TRANSFER)
     {
-        Buffer stagingBuffer(backend, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr);
+        Buffer stagingBuffer(backend, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, CONTINOUS_TRANSFER, nullptr, "stagin buffer for texture");
         memcpy(stagingBuffer.mappedPtr, data, (size_t)size);
 
         VkBufferCreateInfo bufferInfo{};
@@ -227,6 +227,8 @@ vpp::Buffer::Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, Vk
 
         copyBuffer(backend, stagingBuffer.buffer, buffer, size);
     }
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_BUFFER, (uint64_t)buffer, name);
 }
 
 vpp::Buffer::~Buffer()
@@ -240,7 +242,7 @@ vpp::Buffer::~Buffer()
 	vkFreeMemory(backend->device, bufferMemory, nullptr);
 }
 
-vpp::Image::Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties):
+vpp::Image::Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, std::string name):
     backend(backend), width(width), height(height), depth(depth), mipLevels(mipLevels), format(format), imageType(depth == 1 ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_3D)
 {
     VkImageCreateInfo imageInfo{};
@@ -275,6 +277,8 @@ vpp::Image::Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t hei
     }
 
     vkBindImageMemory(backend->device, image, imageMemory, 0);
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_IMAGE, (uint64_t)image, name);
 }
 
 vpp::Image::~Image()
@@ -348,7 +352,7 @@ void vpp::Image::generateMipMaps()
     backend->endSingleTimeCommands(commandBuffer);
 }
 
-vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags)
+vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, std::string name)
     : backend(backend)
 {
     VkImageViewCreateInfo viewInfo{};
@@ -365,9 +369,11 @@ vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Imag
     if (vkCreateImageView(backend->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
     }
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_IMAGE_VIEW, (uint64_t)imageView, name);
 }
 
-vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType)
+vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType, std::string name)
     : backend(backend)
 {
     VkImageViewCreateInfo viewInfo{};
@@ -384,6 +390,8 @@ vpp::ImageView::ImageView(std::shared_ptr<Backend> backend, VkImage image, uint3
     if (vkCreateImageView(backend->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
     }
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_IMAGE_VIEW, (uint64_t)imageView, name);
 }
 
 vpp::ImageView::~ImageView()
@@ -391,7 +399,7 @@ vpp::ImageView::~ImageView()
 	vkDestroyImageView(backend->device, imageView, nullptr);
 }
 
-vpp::Sampler::Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels):
+vpp::Sampler::Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels, std::string name):
     backend(backend)
 {
     VkPhysicalDeviceProperties properties{};
@@ -418,6 +426,8 @@ vpp::Sampler::Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels):
     if (vkCreateSampler(backend->device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
     }
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_SAMPLER, (uint64_t)sampler, name);
 }
 
 vpp::Sampler::~Sampler()
@@ -425,14 +435,14 @@ vpp::Sampler::~Sampler()
 	vkDestroySampler(backend->device, sampler, nullptr);
 }
 
-vpp::SuperDescriptorSetLayout::SuperDescriptorSetLayout(std::shared_ptr<Backend> backend):
-	backend(backend), layoutCreated(false)
+vpp::SuperDescriptorSetLayout::SuperDescriptorSetLayout(std::shared_ptr<Backend> backend, std::string name):
+	backend(backend), layoutCreated(false), name(name)
 {
 }
 
 vpp::SuperDescriptorSetLayout::~SuperDescriptorSetLayout()
 {
-	vkDestroyDescriptorSetLayout(backend->device, descriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(backend->device, descriptorSetLayout, nullptr);
 }
 
 void vpp::SuperDescriptorSetLayout::addBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount)
@@ -463,10 +473,12 @@ void vpp::SuperDescriptorSetLayout::createLayout()
     }
 
     layoutCreated = true;
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, (uint64_t)descriptorSetLayout, name);
 }
 
-vpp::SuperDescriptorSet::SuperDescriptorSet(std::shared_ptr<Backend> backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout):
-    backend(backend), superDescriptorSetLayout(superDescriptorSetLayout)
+vpp::SuperDescriptorSet::SuperDescriptorSet(std::shared_ptr<Backend> backend, std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout, std::string name):
+    backend(backend), textureDescriptorSetLayout(textureDescriptorSetLayout), name(name)
 {
     currentBinding = 0;
     imageInfos = std::make_unique<std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>>>();
@@ -477,24 +489,24 @@ vpp::SuperDescriptorSet::~SuperDescriptorSet()
 {
 }
 
-void vpp::SuperDescriptorSet::addImageToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts)
+void vpp::SuperDescriptorSet::addImagesToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts)
 {
-    if(!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+    if(!textureDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
 
-    if (imageViews.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount || 
-        samplers.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount ||
-        imageLayouts.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount)
+    if (imageViews.size() != textureDescriptorSetLayout->bindings[currentBinding].descriptorCount || 
+        samplers.size() != textureDescriptorSetLayout->bindings[currentBinding].descriptorCount ||
+        imageLayouts.size() != textureDescriptorSetLayout->bindings[currentBinding].descriptorCount)
     {
 		throw std::runtime_error("Binding's image view count, sampler count and image layout count must match layout's descriptor count.");
     }
 
-    if ((superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE))
+    if ((textureDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && textureDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE))
     {
 		throw std::runtime_error("Binding's descriptor type must be VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER or VK_DESCRIPTOR_TYPE_STORAGE_IMAGE.");
     }
 
-    std::vector<VkDescriptorImageInfo> imageInfoVector(superDescriptorSetLayout->bindings[currentBinding].descriptorCount);
-    for (uint32_t i = 0; i < superDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
+    std::vector<VkDescriptorImageInfo> imageInfoVector(textureDescriptorSetLayout->bindings[currentBinding].descriptorCount);
+    for (uint32_t i = 0; i < textureDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
 	{
         imageInfoVector[i].imageLayout = imageLayouts[i];
         imageInfoVector[i].imageView = imageViews[i]->imageView;
@@ -504,22 +516,22 @@ void vpp::SuperDescriptorSet::addImageToBinding(std::vector<std::shared_ptr<Imag
     currentBinding++;
 }
 
-void vpp::SuperDescriptorSet::addBufferToBinding(std::vector<std::shared_ptr<Buffer>> buffers)
+void vpp::SuperDescriptorSet::addBuffersToBinding(std::vector<std::shared_ptr<Buffer>> buffers)
 {
-    if (!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+    if (!textureDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
 
-    if (buffers.size() != superDescriptorSetLayout->bindings[currentBinding].descriptorCount)
+    if (buffers.size() != textureDescriptorSetLayout->bindings[currentBinding].descriptorCount)
     {
-        throw std::runtime_error("Binding's buffer count must match descriptor count.");
+        throw std::runtime_error("Binding's buffer count(" + std::to_string(buffers.size()) + ") does not match descriptor count(" + std::to_string(textureDescriptorSetLayout->bindings[currentBinding].descriptorCount) + ").");
     }
 
-    if ((superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER && superDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER))
+    if ((textureDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER && textureDescriptorSetLayout->bindings[currentBinding].descriptorType != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER))
     {
         throw std::runtime_error("Binding's descriptor type must be VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER or VK_DESCRIPTOR_TYPE_STORAGE_BUFFER.");
     }
 
-    std::vector<VkDescriptorBufferInfo> bufferInfoVector(superDescriptorSetLayout->bindings[currentBinding].descriptorCount);
-    for (uint32_t i = 0; i < superDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
+    std::vector<VkDescriptorBufferInfo> bufferInfoVector(textureDescriptorSetLayout->bindings[currentBinding].descriptorCount);
+    for (uint32_t i = 0; i < textureDescriptorSetLayout->bindings[currentBinding].descriptorCount; i++)
 	{
 		bufferInfoVector[i].buffer = buffers[i]->buffer;
 		bufferInfoVector[i].offset = 0;
@@ -531,16 +543,16 @@ void vpp::SuperDescriptorSet::addBufferToBinding(std::vector<std::shared_ptr<Buf
 
 void vpp::SuperDescriptorSet::createDescriptorSet()
 {
-    if(!superDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
+    if(!textureDescriptorSetLayout->isLayoutCreated()) throw std::runtime_error("Descriptor set layout not created.");
 
-	if (currentBinding != superDescriptorSetLayout->bindings.size()) throw std::runtime_error("Not all bindings have been filled.");
+	if (currentBinding != textureDescriptorSetLayout->bindings.size()) throw std::runtime_error("Not all bindings have been filled.");
 	
     // Allocate descriptor set
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = backend->descriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &superDescriptorSetLayout->descriptorSetLayout;
+    allocInfo.pSetLayouts = &textureDescriptorSetLayout->descriptorSetLayout;
 
     if (vkAllocateDescriptorSets(backend->device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
@@ -549,24 +561,24 @@ void vpp::SuperDescriptorSet::createDescriptorSet()
     // Write descriptor sets
     std::vector<VkWriteDescriptorSet> descriptorWrites;
 
-    for (uint32_t j = 0; j < superDescriptorSetLayout->bindings.size(); j++)
+    for (uint32_t j = 0; j < textureDescriptorSetLayout->bindings.size(); j++)
     {
         VkWriteDescriptorSet descriptorWrite{};
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrite.dstSet = descriptorSet;
         descriptorWrite.dstBinding = j;
         descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = superDescriptorSetLayout->bindings[j].descriptorType;
-        descriptorWrite.descriptorCount = superDescriptorSetLayout->bindings[j].descriptorCount;
+        descriptorWrite.descriptorType = textureDescriptorSetLayout->bindings[j].descriptorType;
+        descriptorWrite.descriptorCount = textureDescriptorSetLayout->bindings[j].descriptorCount;
         descriptorWrite.pBufferInfo = nullptr;
         descriptorWrite.pImageInfo = nullptr;
         descriptorWrite.pTexelBufferView = nullptr;
 
-        if (superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+        if (textureDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || textureDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
         {
             descriptorWrite.pBufferInfo = bufferInfos->at(j).data();
         }
-        else if (superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || superDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+        else if (textureDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || textureDescriptorSetLayout->bindings[j].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
         {
             descriptorWrite.pImageInfo = imageInfos->at(j).data();
         }
@@ -578,4 +590,6 @@ void vpp::SuperDescriptorSet::createDescriptorSet()
 
     imageInfos.reset();
     bufferInfos.reset();
+
+    backend->setNameOfObject(VK_OBJECT_TYPE_DESCRIPTOR_SET, (uint64_t)descriptorSet, name);
 }

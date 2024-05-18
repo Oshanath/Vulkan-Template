@@ -15,6 +15,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <unordered_map>
+#include <iostream>
 
 
 namespace vpp
@@ -78,6 +79,19 @@ namespace vpp
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+		inline void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
+		{
+			auto func = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
+
+			VkDebugUtilsObjectNameInfoEXT nameInfo{};
+			nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+			nameInfo.objectType = type;
+			nameInfo.objectHandle = objectHandle;
+			nameInfo.pObjectName = name.c_str();
+
+			func(device, &nameInfo);
+		}
 	};
 
 	class Buffer
@@ -91,7 +105,7 @@ namespace vpp
 
 		BufferType type;
 
-		Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data);
+		Buffer(std::shared_ptr<vpp::Backend> backend, VkDeviceSize size, VkBufferUsageFlags usage, vpp::BufferType type, void* data, std::string name);
 		~Buffer();
 
 		static void copyBuffer(std::shared_ptr<vpp::Backend> backend, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -110,7 +124,7 @@ namespace vpp
 		uint32_t depth;
 		VkImageType imageType;
 
-		Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+		Image(std::shared_ptr<Backend> backend, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, std::string name);
 		~Image();
 
 		void generateMipMaps();
@@ -122,8 +136,8 @@ namespace vpp
 		std::shared_ptr<Backend> backend;
 		VkImageView imageView;
 
-		ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags);
-		ImageView(std::shared_ptr<Backend> backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType);
+		ImageView(std::shared_ptr<Backend> backend, std::shared_ptr<Image> image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, std::string name);
+		ImageView(std::shared_ptr<Backend> backend, VkImage image, uint32_t baseMipLevel, uint32_t mipLevels, VkImageAspectFlagBits aspectFlags, VkFormat format, VkImageViewType viewType, std::string name);
 		~ImageView();
 	};
 
@@ -133,7 +147,7 @@ namespace vpp
 		std::shared_ptr<Backend> backend;
 		VkSampler sampler;
 
-		Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels = 0);
+		Sampler(std::shared_ptr<Backend> backend, uint32_t mipLevels, std::string name);
 		~Sampler();
 	};
 
@@ -143,14 +157,15 @@ namespace vpp
 		std::shared_ptr<Backend> backend;
 		VkDescriptorSetLayout descriptorSetLayout;
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		std::string name;
 
-		SuperDescriptorSetLayout(std::shared_ptr<Backend> backend);
+		SuperDescriptorSetLayout(std::shared_ptr<Backend> backend, std::string name);
 		~SuperDescriptorSetLayout();
 
 		void addBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount);
 		void createLayout();
 
-		inline VkDescriptorSetLayout getDescriptorSetLayout() { return descriptorSetLayout; }
+		inline VkDescriptorSetLayout getTextureDescriptorSetLayout() { return descriptorSetLayout; }
 		inline bool isLayoutCreated() { return layoutCreated; }
 
 	private:
@@ -161,14 +176,15 @@ namespace vpp
 	{
 	public:
 		std::shared_ptr<Backend> backend;
-		std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout;
+		std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout;
 		VkDescriptorSet descriptorSet;
+		std::string name;
 
-		SuperDescriptorSet(std::shared_ptr<Backend> backend, std::shared_ptr<SuperDescriptorSetLayout> superDescriptorSetLayout);
+		SuperDescriptorSet(std::shared_ptr<Backend> backend, std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout, std::string name);
 		~SuperDescriptorSet();
 
-		void addImageToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts);
-		void addBufferToBinding(std::vector<std::shared_ptr<Buffer>> buffers);
+		void addImagesToBinding(std::vector<std::shared_ptr<ImageView>> imageViews, std::vector<std::shared_ptr<Sampler>> samplers, std::vector<VkImageLayout> imageLayouts);
+		void addBuffersToBinding(std::vector<std::shared_ptr<Buffer>> buffers);
 		void createDescriptorSet();
 
 	private:

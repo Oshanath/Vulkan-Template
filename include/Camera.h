@@ -11,8 +11,7 @@
 
 namespace vpp
 {
-	struct MVPMatrices {
-		glm::mat4 model;
+	struct ViewProjectionMatrices {
 		glm::mat4 view;
 		glm::mat4 proj;
 	};
@@ -39,7 +38,7 @@ namespace vpp
 
 		Camera(glm::vec3 position, glm::vec3 target);
 
-		MVPMatrices getMVPMatrices(float width, float height);
+		ViewProjectionMatrices getMVPMatrices(float width, float height);
 
 		void move();
 		void mouse_callback(double xpos, double ypos);

@@ -9,30 +9,36 @@
 TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features) : 
     vpp::Application(app_name, apiVersion, validation_features), camera(glm::vec3(-2907.25, 2827.39, 755.888), glm::vec3(0.0f, 0.0f, 0.0f))
 {
-    model = std::make_unique<vpp::Model>("models/sponza/Sponza.gltf", backend);
+    //model = std::make_unique<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
+    model = std::make_unique<vpp::Model>("models/trashGod/scene.glb", backend, vpp::FLAT_COLOR);
+    vpp::Model::finishLoadingModels(backend);
 
     createUniformBuffers();
-    createDescriptorSetLayout();
+    initialize();
     createDescriptorSets();
     createGraphicsPipeline();
 }
 
 void TriangleRenderer::cleanup_extended()
 {
-    model.reset();
-
     vkDestroyPipeline(backend->device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(backend->device, pipelineLayout, nullptr);
     vkDestroyRenderPass(backend->device, backend->swapChainRenderPass, nullptr);
 
-    vkDestroyDescriptorSetLayout(backend->device, descriptorSetLayout, nullptr);
+    modelViewProjectionDescriptorSetLayout.reset();
 
     vkDestroyShaderModule(backend->device, fragShaderModule, nullptr);
     vkDestroyShaderModule(backend->device, vertShaderModule, nullptr);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		uniformBuffers[i].reset();
+		viewProjectionUniformBuffers[i].reset();
+        modelUniformBuffers[i].reset();
 	}
+
+    vpp::Model::destroyModels(backend);
+
+    modelViewProjectionDescriptorSetLayout.reset();
+    modelViewProjectionDescriptorSets.clear();
 }
 
 void TriangleRenderer::createGraphicsPipeline()
@@ -41,8 +47,8 @@ void TriangleRenderer::createGraphicsPipeline()
     auto fragShaderCode = readFile("shaders/test.frag.spv");
     vertShaderModule = createShaderModule(vertShaderCode);
     fragShaderModule = createShaderModule(fragShaderCode);
-    setNameOfObject(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)vertShaderModule, "TriangleRenderer::Vertex Shader Module");
-    setNameOfObject(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)fragShaderModule, "TriangleRenderer::Fragment Shader Module");
+    backend->setNameOfObject(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)vertShaderModule, "TriangleRenderer::Vertex Shader Module");
+    backend->setNameOfObject(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)fragShaderModule, "TriangleRenderer::Fragment Shader Module");
 
     // Vertex shader stage
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -161,13 +167,22 @@ void TriangleRenderer::createGraphicsPipeline()
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
     // Pipeline layout
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(MainPushConstants);
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    VkDescriptorSetLayout layouts[] = { descriptorSetLayout, vpp::Model::getSuperDescriptorSetLayout(backend)->descriptorSetLayout};
+    std::vector<VkDescriptorSetLayout> layouts = {
+        modelViewProjectionDescriptorSetLayout->descriptorSetLayout,
+        vpp::Model::getTextureDescriptorSetLayout()->descriptorSetLayout,
+        vpp::Model::getColorDescriptorSetLayout()->descriptorSetLayout
+    };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 2;
-    pipelineLayoutInfo.pSetLayouts = layouts;
-    pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-    pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+    pipelineLayoutInfo.setLayoutCount = layouts.size();
+    pipelineLayoutInfo.pSetLayouts = layouts.data();
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     if (vkCreatePipelineLayout(backend->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
@@ -221,18 +236,38 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
 
     setDynamicState();
 
-    for (auto& mesh : model->meshes)
+    VkDeviceSize offsets[] = { 0 };
+
+    vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
+    vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &modelViewProjectionDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
+
+    MainPushConstants pushConstants;
+    pushConstants.textureType = uint32_t(model->textureType);
+
+    if (model->hasTree)
     {
-        VkBuffer vertexBuffers[] = { mesh->vertexBuffer->buffer };
-        VkDeviceSize offsets[] = { 0 };
+        for (auto& node : model->nodes)
+        {
+			pushConstants.submeshTransform = node.transform;
+			pushConstants.materialIndex = model->meshes[node.meshIndex].materialIndex;
+			vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
+			vkCmdDrawIndexed(backend->commandBuffers[currentFrame], model->meshes[node.meshIndex].indexCount, 1, model->meshes[node.meshIndex].startIndex, 0, 0);
+		}
+    }
+    else
+    {
+        pushConstants.submeshTransform = glm::mat4(1.0f);
 
-        vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], mesh->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
-        vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &model->superDescriptorSets[mesh->materialIndex]->descriptorSet, 0, nullptr);
-
-        vkCmdDrawIndexed(backend->commandBuffers[currentFrame], static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
+        for (auto& mesh : model->meshes)
+        {
+            pushConstants.materialIndex = mesh.materialIndex;
+            vkCmdPushConstants(backend->commandBuffers[currentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MainPushConstants), &pushConstants);
+            vkCmdDrawIndexed(backend->commandBuffers[currentFrame], mesh.indexCount, 1, mesh.startIndex, 0, 0);
+        }
     }
 
     vkCmdEndRenderPass(backend->commandBuffers[currentFrame]);
@@ -282,98 +317,51 @@ void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageI
 {
     camera.deltaTime = deltaTime;
     camera.move();
-    updateUniformBuffer(currentFrame);
+    updateUniformBuffers(currentFrame);
     recordCommandBuffer(currentFrame, imageIndex);
 }
 
 void TriangleRenderer::createUniformBuffers()
 {
-    VkDeviceSize bufferSize = sizeof(vpp::MVPMatrices);
+    VkDeviceSize viewProjectionUBOSize = sizeof(vpp::ViewProjectionMatrices);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        uniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr));
+        viewProjectionUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, viewProjectionUBOSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "View Projection Uniform Buffer"));
+        modelUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(glm::mat4), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Model Uniform buffer"));
     }
 }
 
-void TriangleRenderer::createDescriptorSetLayout()
+void TriangleRenderer::initialize()
 {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-
-    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-    samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 1;
-    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    samplerLayoutBinding.pImmutableSamplers = nullptr;
-    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
-
-    if (vkCreateDescriptorSetLayout(backend->device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
-    }
+    
 }
 
-void TriangleRenderer::updateUniformBuffer(uint32_t currentImage)
+void TriangleRenderer::updateUniformBuffers(uint32_t currentImage)
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
+    vpp::ViewProjectionMatrices ubo = camera.getMVPMatrices(backend->swapChainExtent.width, backend->swapChainExtent.height);
+    memcpy(viewProjectionUniformBuffers[currentImage]->mappedPtr, &ubo, sizeof(ubo));
 
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    /*MVPMatrices ubo{};
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));  
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;*/
-
-    vpp::MVPMatrices ubo = camera.getMVPMatrices(backend->swapChainExtent.width, backend->swapChainExtent.height);
-    float scale = 0.001f;
-    ubo.model = glm::identity<glm::mat4>();
-    //ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    memcpy(uniformBuffers[currentImage]->mappedPtr, &ubo, sizeof(ubo));
+    glm::mat4 modelMatrix = glm::mat4(1.0f);
+    modelMatrix = glm::mat4(1.0f);
+    memcpy(modelUniformBuffers[currentImage]->mappedPtr, &modelMatrix, sizeof(modelMatrix));
 }
 
 void TriangleRenderer::createDescriptorSets()
 {
-    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = backend->descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    allocInfo.pSetLayouts = layouts.data();
+    modelViewProjectionDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Model view projection descriptor set layout");
+    modelViewProjectionDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+    modelViewProjectionDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    modelViewProjectionDescriptorSetLayout->createLayout();
 
-    descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(backend->device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
+    modelViewProjectionDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
     {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i]->buffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(vpp::MVPMatrices);
+        modelViewProjectionDescriptorSets[i] = std::make_shared<vpp::SuperDescriptorSet>(backend, modelViewProjectionDescriptorSetLayout, "Model View Projection descriptor set " + std::to_string(i));
+        modelViewProjectionDescriptorSets[i]->addBuffersToBinding({ viewProjectionUniformBuffers[i] });
+        modelViewProjectionDescriptorSets[i]->addBuffersToBinding({ modelUniformBuffers[i] });
+        modelViewProjectionDescriptorSets[i]->createDescriptorSet();
+	}
 
-        std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
-
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-        vkUpdateDescriptorSets(backend->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-    }
 }
 
 void TriangleRenderer::key_callback_extended(GLFWwindow* window, int key, int scancode, int action, int mods, double deltaTime)
