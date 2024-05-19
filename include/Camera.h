@@ -8,14 +8,10 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "util.h"
 
 namespace vpp
 {
-	struct ViewProjectionMatrices {
-		glm::mat4 view;
-		glm::mat4 proj;
-	};
-
 	class Camera
 	{
 	public:

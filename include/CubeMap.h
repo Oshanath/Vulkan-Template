@@ -6,6 +6,7 @@
 #include <assimp/postprocess.h>     // Post processing flags
 #include <memory>
 #include "Model.h"
+#include "util.h"
 
 class CubeMap
 {

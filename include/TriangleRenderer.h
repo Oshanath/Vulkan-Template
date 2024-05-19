@@ -4,27 +4,9 @@
 #include "Application.h"
 #include <array>
 #include "Model.h"
+#include "util.h"
 
-struct MainPushConstants
-{
-	glm::mat4 submeshTransform;
-	glm::mat4 modelTransform;
-	uint32_t materialIndex;
-	uint32_t colorIndex;
-	uint32_t textureType;
-};
 
-struct CameraLightInfo
-{
-	glm::vec4 cameraPos;
-	glm::vec4 lightDir;
-};
-
-struct Controls
-{
-	float sunlightIntensity;
-	float ambientFactor;
-};
 
 class TriangleRenderer : public vpp::Application
 {
@@ -34,13 +16,9 @@ private:
 	std::vector<std::shared_ptr<vpp::Model>> models;
 	std::shared_ptr<vpp::Model> sky;
 
-	VkShaderModule vertShaderModule;
-	VkShaderModule fragShaderModule;
+	std::shared_ptr<vpp::GraphicsPipeline> graphicsPipeline;
 
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
-
-	Controls controls;
+	vpp::Controls controls;
 
 	std::vector<std::shared_ptr<vpp::Buffer>> viewProjectionUniformBuffers;
 	std::vector<std::shared_ptr<vpp::Buffer>> modelUniformBuffers;

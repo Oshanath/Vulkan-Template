@@ -16,6 +16,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <unordered_map>
 #include <iostream>
+#include <fstream>
+#include "util.h"
 
 
 namespace vpp
@@ -27,19 +29,7 @@ namespace vpp
 	class Sampler;
 	class SuperDescriptorSet;
 	class SuperDescriptorSetLayout;
-
-	enum BufferType
-	{
-		CONTINOUS_TRANSFER,
-		ONE_TIME_TRANSFER,
-		GPU_ONLY
-	};
-
-	struct TextureImageCreationResults
-	{
-		std::shared_ptr<Image> image;
-		std::shared_ptr<ImageView> imageView;
-	};
+	class GraphicsPipeline;
 
 	class Backend : public std::enable_shared_from_this<Backend>
 	{
@@ -81,6 +71,7 @@ namespace vpp
 		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
+		VkShaderModule createShaderModule(const std::vector<char>& code);
 
 		inline void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
 		{
@@ -93,6 +84,23 @@ namespace vpp
 			nameInfo.pObjectName = name.c_str();
 
 			func(device, &nameInfo);
+		}
+
+		inline static std::vector<char> readFile(const std::string& filename)
+		{
+			std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+			if (!file.is_open()) {
+				throw std::runtime_error("failed to open file!");
+			}
+
+			size_t fileSize = (size_t)file.tellg();
+			std::vector<char> buffer(fileSize);
+			file.seekg(0);
+			file.read(buffer.data(), fileSize);
+			file.close();
+
+			return buffer;
 		}
 
 	private:
@@ -198,6 +206,47 @@ namespace vpp
 		std::unique_ptr<std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>>> bufferInfos;
 
 
+	};
+
+	class GraphicsPipeline
+	{
+	public:
+		GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable);
+		~GraphicsPipeline();
+
+		void addShaderStage(VkShaderStageFlagBits stage, std::string path);
+		void addPushConstantRange(VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size);
+		void addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorSetLayout> descriptorSetLayout);
+		void createPipeline();
+
+		VkPipeline pipeline;
+		VkPipelineLayout pipelineLayout;
+
+		std::shared_ptr<Backend> backend;
+		std::string name;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencil{};
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+		VkViewport viewport{};
+		VkRect2D scissor{};
+		std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+		VkPipelineDynamicStateCreateInfo dynamicState{};
+		VkPipelineViewportStateCreateInfo viewportState{};
+		VkPipelineRasterizationStateCreateInfo rasterizer{};
+		VkPipelineMultisampleStateCreateInfo multisampling{};
+		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+		VkPipelineColorBlendStateCreateInfo colorBlending{};
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+		VkGraphicsPipelineCreateInfo pipelineInfo{};
+
+	private:
+		VkVertexInputBindingDescription bindingDescription;
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+		std::vector<VkShaderModule> shaderModules;
+		std::vector<VkPushConstantRange> pushConstantRanges;
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 	};
 }
 
