@@ -208,22 +208,37 @@ namespace vpp
 
 	};
 
-	class GraphicsPipeline
+	class Pipeline
+	{
+	public:
+		std::shared_ptr<Backend> backend;
+		std::string name;
+
+		VkPipeline pipeline;
+		VkPipelineLayout pipelineLayout;
+
+		Pipeline(std::shared_ptr<Backend> backend, std::string name);
+		~Pipeline();
+
+		void addPushConstantRange(VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size);
+		void addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorSetLayout> descriptorSetLayout);
+
+		virtual void createPipeline() = 0;
+
+	protected:
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+		std::vector<VkPushConstantRange> pushConstantRanges;
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	};;
+
+	class GraphicsPipeline : public Pipeline
 	{
 	public:
 		GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable);
 		~GraphicsPipeline();
 
 		void addShaderStage(VkShaderStageFlagBits stage, std::string path);
-		void addPushConstantRange(VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size);
-		void addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorSetLayout> descriptorSetLayout);
 		void createPipeline();
-
-		VkPipeline pipeline;
-		VkPipelineLayout pipelineLayout;
-
-		std::shared_ptr<Backend> backend;
-		std::string name;
 
 		VkPipelineDepthStencilStateCreateInfo depthStencil{};
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -237,7 +252,6 @@ namespace vpp
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 		VkPipelineColorBlendStateCreateInfo colorBlending{};
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 
 	private:
@@ -245,8 +259,23 @@ namespace vpp
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 		std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 		std::vector<VkShaderModule> shaderModules;
-		std::vector<VkPushConstantRange> pushConstantRanges;
-		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	};
+
+	class ComputePipeline : public Pipeline
+	{
+	public:
+		ComputePipeline(std::shared_ptr<Backend> backend, std::string name, std::string path);
+		~ComputePipeline();
+
+		void createPipeline();
+
+		VkPipeline pipeline;
+		VkPipelineLayout pipelineLayout;
+		VkComputePipelineCreateInfo pipelineInfo{};
+
+	private:
+		VkPipelineShaderStageCreateInfo computeShaderStageInfo = {};
+
 	};
 }
 

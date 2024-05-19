@@ -19,7 +19,7 @@ set(VULKAN_TEMPLATE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/Camera.cpp
     ${PROJECT_SOURCE_DIR}/src/Backend.cpp
     ${PROJECT_SOURCE_DIR}/src/CubeMap.cpp
-    ${PROJECT_SOURCE_DIR}/src/GraphicsPipeline.cpp
+    ${PROJECT_SOURCE_DIR}/src/Pipeline.cpp
 
     ${PROJECT_SOURCE_DIR}/external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/external/imgui/imgui_demo.cpp

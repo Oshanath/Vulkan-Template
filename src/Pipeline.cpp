@@ -1,8 +1,37 @@
 #include "Backend.h"
 
-vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable) :
-	backend(backend), name(name)
+#include <iostream>
+
+vpp::Pipeline::Pipeline(std::shared_ptr<Backend> backend, std::string name) :
+    backend(backend), name(name)
 {
+}
+
+vpp::Pipeline::~Pipeline()
+{
+	vkDestroyPipelineLayout(backend->device, pipelineLayout, nullptr);
+    vkDestroyPipeline(backend->device, pipeline, nullptr);
+}
+
+void vpp::Pipeline::addPushConstantRange(VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size)
+{
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = stageFlags;
+    pushConstantRange.offset = offset;
+    pushConstantRange.size = size;
+    pushConstantRanges.push_back(pushConstantRange);
+}
+
+void vpp::Pipeline::addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorSetLayout> descriptorSetLayout)
+{
+    descriptorSetLayouts.push_back(descriptorSetLayout->descriptorSetLayout);
+}
+
+
+vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable):
+    Pipeline(backend, name)
+{
+
     // Depth stencil state
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = depthTestEnable;
@@ -116,8 +145,6 @@ vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::s
 
 vpp::GraphicsPipeline::~GraphicsPipeline()
 {
-	vkDestroyPipeline(backend->device, pipeline, nullptr);
-	vkDestroyPipelineLayout(backend->device, pipelineLayout, nullptr);
 }
 
 void vpp::GraphicsPipeline::addShaderStage(VkShaderStageFlagBits stage, std::string path)
@@ -132,20 +159,6 @@ void vpp::GraphicsPipeline::addShaderStage(VkShaderStageFlagBits stage, std::str
     shaderStageInfo.module = shaderModules[shaderModules.size() - 1];
     shaderStageInfo.pName = "main";
     shaderStages.push_back(shaderStageInfo);
-}
-
-void vpp::GraphicsPipeline::addPushConstantRange(VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size)
-{
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = stageFlags;
-    pushConstantRange.offset = offset;
-    pushConstantRange.size = size;
-    pushConstantRanges.push_back(pushConstantRange);
-}
-
-void vpp::GraphicsPipeline::addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorSetLayout> descriptorSetLayout)
-{
-    descriptorSetLayouts.push_back(descriptorSetLayout->descriptorSetLayout);
 }
 
 void vpp::GraphicsPipeline::createPipeline()
@@ -173,4 +186,48 @@ void vpp::GraphicsPipeline::createPipeline()
     {
         vkDestroyShaderModule(backend->device, shaderModule, nullptr);
     }
+}
+
+
+vpp::ComputePipeline::ComputePipeline(std::shared_ptr<Backend> backend, std::string name, std::string path) :
+    Pipeline(backend, name)
+{
+    // Load compute shader pipeline
+    auto computeShaderCode = vpp::Backend::readFile(path);
+    auto computeShaderModule = backend->createShaderModule(computeShaderCode);
+
+    computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    computeShaderStageInfo.module = computeShaderModule;
+    computeShaderStageInfo.pName = "main";
+
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = computeShaderStageInfo;
+
+    vkDestroyShaderModule(backend->device, computeShaderModule, nullptr);
+}
+
+vpp::ComputePipeline::~ComputePipeline()
+{
+}
+
+void vpp::ComputePipeline::createPipeline()
+{
+    pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+    pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
+    pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+
+    if (vkCreatePipelineLayout(backend->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create pipeline layout!");
+    }
+
+    pipelineInfo.layout = pipelineLayout;
+
+    if (vkCreateComputePipelines(backend->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create compute pipeline!");
+	}
 }
