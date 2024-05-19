@@ -19,6 +19,14 @@ set(VULKAN_TEMPLATE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/Camera.cpp
     ${PROJECT_SOURCE_DIR}/src/Backend.cpp
     ${PROJECT_SOURCE_DIR}/src/CubeMap.cpp
+
+    ${PROJECT_SOURCE_DIR}/external/imgui/imgui.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/imgui_demo.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/imgui_draw.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/imgui_widgets.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/imgui_tables.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/backends/imgui_impl_glfw.cpp
+    ${PROJECT_SOURCE_DIR}/external/imgui/backends/imgui_impl_vulkan.cpp
     )
 
 set(SHADER_SOURCES 
@@ -26,7 +34,11 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shaders/test.frag
     )
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/external/imgui
+    ${PROJECT_SOURCE_DIR}/external/imgui/backends
+)
 
 add_executable(VulkanTemplate ${VULKAN_TEMPLATE_SOURCES} ${SHADER_SOURCES} "main.cpp")
 

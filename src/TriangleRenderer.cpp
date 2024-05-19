@@ -15,7 +15,10 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     sky = std::make_shared<vpp::Model>("models/skyBox/sky.glb", backend, vpp::TextureType::EMBEDDED);
     models.push_back(sky);
     sky->scale = glm::vec3(19.0f);
-    
+        
+    std::shared_ptr<vpp::Model> sponza = std::make_shared<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
+    models.push_back(sponza);
+
     /*std::shared_ptr<vpp::Model> sponza = std::make_unique<vpp::Model>("models/sponza3/NewSponza_Main_glTF_002.gltf", backend, vpp::TEXTURE);
     models.push_back(sponza);
     sponza->scale = glm::vec3(100.0f);
@@ -24,8 +27,8 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     models.push_back(sponzaCurtains);
     sponzaCurtains->scale = glm::vec3(100.0f);*/
 
-    std::shared_ptr<vpp::Model> trashGod = std::make_shared<vpp::Model>("models/trashGod/scene.fbx", backend, vpp::FLAT_COLOR);
-    models.push_back(trashGod);
+    /*std::shared_ptr<vpp::Model> trashGod = std::make_shared<vpp::Model>("models/trashGod/scene.fbx", backend, vpp::FLAT_COLOR);
+    models.push_back(trashGod);*/
 
     vpp::Model::finishLoadingModels(backend);
 
@@ -296,6 +299,10 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
         }
     }
 
+    // Imgui
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), backend->commandBuffers[currentFrame]);
+
     vkCmdEndRenderPass(backend->commandBuffers[currentFrame]);
 
     if (vkEndCommandBuffer(backend->commandBuffers[currentFrame]) != VK_SUCCESS) {
@@ -341,6 +348,7 @@ void TriangleRenderer::setDynamicState()
 
 void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageIndex)
 {
+
     camera.deltaTime = deltaTime;
     camera.move();
 
@@ -348,6 +356,12 @@ void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageI
     {
         sky->position = camera.position;
 	}
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    
+    // Imgui window here
 
     updateUniformBuffers(currentFrame);
     recordCommandBuffer(currentFrame, imageIndex);

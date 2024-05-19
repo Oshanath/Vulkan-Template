@@ -11,6 +11,14 @@
 
 #include <array>
 
+static void check_vk_result(VkResult err)
+{
+    if (err == 0)
+        return;
+    fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+    if (err < 0)
+        abort();
+}
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
@@ -50,6 +58,31 @@ vpp::Application::Application(std::string app_name, uint32_t apiVersion, std::ve
     createSwapChainRenderPass();
     createDepthResources();
     createSwapChainFramebuffers();
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    io = &ImGui::GetIO(); (void)io;
+    io->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    ImGui::StyleColorsDark();
+    
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForVulkan(backend->window, true);
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = backend->instance;
+    init_info.PhysicalDevice = backend->physicalDevice;
+    init_info.Device = backend->device;
+    init_info.QueueFamily = findQueueFamilies(backend->physicalDevice).graphicsFamily.value();
+    init_info.Queue = backend->graphicsQueue;
+    init_info.PipelineCache = VK_NULL_HANDLE;
+    init_info.DescriptorPool = backend->descriptorPool;
+    init_info.RenderPass = backend->swapChainRenderPass;
+    init_info.Subpass = 0;
+    init_info.MinImageCount = g_MinImageCount;
+    init_info.ImageCount = g_MinImageCount;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.Allocator = nullptr;
+    init_info.CheckVkResultFn = check_vk_result;
+    ImGui_ImplVulkan_Init(&init_info);
 }
 
 void vpp::Application::run()
@@ -95,6 +128,8 @@ void vpp::Application::init_window()
     glfwSetKeyCallback(backend->window, key_callback);
     glfwSetMouseButtonCallback(backend->window, mouse_button_callback);
     glfwSetCursorPosCallback(backend->window, cursor_position_callback);
+
+
 }
 
 void vpp::Application::main_loop()
@@ -174,9 +209,15 @@ void vpp::Application::main_loop()
 
 void vpp::Application::cleanup()
 {
+    vkDeviceWaitIdle(backend->device);
+
     cleanup_extended();
 
     cleanupSwapChain();
+
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(backend->device, backend->renderFinishedSemaphores[i], nullptr);
@@ -831,6 +872,7 @@ void vpp::Application::createDescriptorPool()
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(1000);
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
     if (vkCreateDescriptorPool(backend->device, &poolInfo, nullptr, &backend->descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
