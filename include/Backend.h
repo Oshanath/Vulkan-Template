@@ -80,6 +80,7 @@ namespace vpp
 		TextureImageCreationResults createTextureImage(stbi_uc*, uint32_t size, uint32_t* mipLevels);
 		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 
 		inline void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
 		{

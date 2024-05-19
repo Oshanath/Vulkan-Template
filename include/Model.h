@@ -151,42 +151,51 @@ namespace vpp
 
 			// create layouts and descriptor sets
 			textureDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend, "Texture descriptor set layout");
-			textureDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, (textureImages.size() == 0) ? 1 : textureImages.size());
+			textureDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, (albedoImages.size() == 0) ? 1 : albedoImages.size());
+			textureDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, (metallicImages.size() == 0) ? 1 : metallicImages.size());
+			textureDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, (roughnessImages.size() == 0) ? 1 : roughnessImages.size());
 			textureDescriptorSetLayout->createLayout();
 
 			colorDescriptorSetLayout = std::make_shared<SuperDescriptorSetLayout>(backend, "Color descriptor set layout");
 			colorDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+			colorDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+			colorDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 			colorDescriptorSetLayout->createLayout();
 
-			if (textureImages.size() > 0)
+			if (albedoImages.size() > 0)
 			{
 				textureDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, textureDescriptorSetLayout, "Texture descriptor set");
-				textureDescriptorSet->addImagesToBinding(textureImageViews, std::vector<std::shared_ptr<Sampler>>(textureImages.size(), textureSampler), std::vector<VkImageLayout>(textureImages.size(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+				textureDescriptorSet->addImagesToBinding(albedoImageViews, std::vector<std::shared_ptr<Sampler>>(albedoImages.size(), textureSampler), std::vector<VkImageLayout>(albedoImages.size(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+				textureDescriptorSet->addImagesToBinding(metallicImageViews, std::vector<std::shared_ptr<Sampler>>(metallicImages.size(), textureSampler), std::vector<VkImageLayout>(metallicImages.size(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+				textureDescriptorSet->addImagesToBinding(roughnessImageViews, std::vector<std::shared_ptr<Sampler>>(roughnessImages.size(), textureSampler), std::vector<VkImageLayout>(roughnessImages.size(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 				textureDescriptorSet->createDescriptorSet();
 			}
 			else
 			{
-				defaultImage = std::make_shared<Image>(backend, 1, 1,1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Default image");
-				defaultImageView = std::make_shared<ImageView>(backend, defaultImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Default Image View");
-
 				textureDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, textureDescriptorSetLayout, "Texture descriptor set");
+				textureDescriptorSet->addImagesToBinding({ defaultImageView }, { textureSampler }, { VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+				textureDescriptorSet->addImagesToBinding({ defaultImageView }, { textureSampler }, { VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 				textureDescriptorSet->addImagesToBinding({ defaultImageView }, {textureSampler}, {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 				textureDescriptorSet->createDescriptorSet();
 			}
 
-			if(colors.size() > 0)
+			if(flatAlbedos.size() > 0)
 			{
-				colorBuffer = std::make_shared<Buffer>(backend, colors.size() * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, colors.data(), "Color Buffer");
+				flatAlbedoBuffer = std::make_shared<Buffer>(backend, flatAlbedos.size() * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, flatAlbedos.data(), "Flat Albedo Buffer");
+				flatMetallicBuffer = std::make_shared<Buffer>(backend, flatMetallics.size() * sizeof(float), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, flatMetallics.data(), "Flat metallic Buffer");
+				flatRoughnessBuffer = std::make_shared<Buffer>(backend, flatRoughnesses.size() * sizeof(float), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::ONE_TIME_TRANSFER, flatRoughnesses.data(), "Flat roughness Buffer");
 
 				colorDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, colorDescriptorSetLayout, "Color descriptor set");
-				colorDescriptorSet->addBuffersToBinding({ colorBuffer });
+				colorDescriptorSet->addBuffersToBinding({ flatAlbedoBuffer });
+				colorDescriptorSet->addBuffersToBinding({ flatMetallicBuffer });
+				colorDescriptorSet->addBuffersToBinding({ flatRoughnessBuffer });
 				colorDescriptorSet->createDescriptorSet();
 			}
 			else
 			{
-				defaultBuffer = std::make_shared<Buffer>(backend, 1, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::GPU_ONLY, nullptr, "Default SSBO");
-
 				colorDescriptorSet = std::make_shared<SuperDescriptorSet>(backend, colorDescriptorSetLayout, "Color descriptor set");
+				colorDescriptorSet->addBuffersToBinding({ defaultBuffer });
+				colorDescriptorSet->addBuffersToBinding({ defaultBuffer });
 				colorDescriptorSet->addBuffersToBinding({ defaultBuffer });
 				colorDescriptorSet->createDescriptorSet();
 			}
@@ -223,12 +232,18 @@ namespace vpp
 			colorDescriptorSet.reset();
 			colorDescriptorSetLayout.reset();
 
-			textureImages.clear();
-			textureImageViews.clear();
+			albedoImages.clear();
+			albedoImageViews.clear();
+			metallicImages.clear();
+			metallicImageViews.clear();
+			roughnessImages.clear();
+			roughnessImageViews.clear();
 			textureSampler.reset();
 			vertexBuffer.reset();
 			indexBuffer.reset();
-			colorBuffer.reset();
+			flatAlbedoBuffer.reset();
+			flatMetallicBuffer.reset();
+			flatRoughnessBuffer.reset();
 			defaultImage.reset();
 			defaultImageView.reset();
 			defaultBuffer.reset();
@@ -237,8 +252,12 @@ namespace vpp
 			finished = false;
 		}
 
-		inline static std::vector<std::shared_ptr<Image>> textureImages;
-		inline static std::vector<glm::vec4> colors;
+		inline static std::vector<std::shared_ptr<Image>> albedoImages;
+		inline static std::vector<std::shared_ptr<Image>> metallicImages;
+		inline static std::vector<std::shared_ptr<Image>> roughnessImages;
+		inline static std::vector<glm::vec4> flatAlbedos;
+		inline static std::vector<float> flatMetallics;
+		inline static std::vector<float> flatRoughnesses;
 
 	private:
 		inline static std::shared_ptr<SuperDescriptorSetLayout> textureDescriptorSetLayout;
@@ -250,12 +269,17 @@ namespace vpp
 		inline static std::vector<Vertex> vertices;
 		inline static std::vector<uint32_t> indices;
 
-		inline static std::vector<std::shared_ptr<ImageView>> textureImageViews;
+		inline static std::vector<std::shared_ptr<ImageView>> albedoImageViews;
+		inline static std::vector<std::shared_ptr<ImageView>> metallicImageViews;
+		inline static std::vector<std::shared_ptr<ImageView>> roughnessImageViews;
+
 		inline static std::shared_ptr<SuperDescriptorSet> textureDescriptorSet;
 		inline static std::vector<uint32_t> mipLevels;
 		inline static std::shared_ptr<vpp::Sampler> textureSampler;
 
-		inline static std::shared_ptr<Buffer> colorBuffer;
+		inline static std::shared_ptr<Buffer> flatAlbedoBuffer;
+		inline static std::shared_ptr<Buffer> flatMetallicBuffer;
+		inline static std::shared_ptr<Buffer> flatRoughnessBuffer;
 		inline static std::shared_ptr<SuperDescriptorSet> colorDescriptorSet;
 
 		inline static std::shared_ptr<Buffer> vertexBuffer;

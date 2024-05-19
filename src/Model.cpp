@@ -39,6 +39,16 @@ glm::mat4 vpp::Model::getModelMatrix()
 vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, TextureType textureType) :
     backend(backend), path(path), directory(path.substr(0, path.find_last_of('/'))), textureType(textureType)
 {
+    if (!initialized)
+    {
+        defaultImage = std::make_shared<Image>(backend, 1, 1, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Default image");
+        defaultImageView = std::make_shared<ImageView>(backend, defaultImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Default Image View");
+        defaultBuffer = std::make_shared<Buffer>(backend, 1, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vpp::GPU_ONLY, nullptr, "Default SSBO");
+
+        // transition default image
+        backend->transitionImageLayout(defaultImage->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1);
+    }
+
     position = glm::vec3(0.0f);
     scale = glm::vec3(1.0f);
     rotationAngleAxis = { 0.0f, glm::vec3(0.0f, 1.0f, 0.0f) };
@@ -69,8 +79,8 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
 		const aiMesh* aiMesh = scene->mMeshes[i];
 
         Mesh mesh;
-        mesh.materialIndex = aiMesh->mMaterialIndex + textureImages.size();
-        mesh.colorIndex = aiMesh->mMaterialIndex + colors.size();
+        mesh.materialIndex = aiMesh->mMaterialIndex + albedoImages.size();
+        mesh.colorIndex = aiMesh->mMaterialIndex + flatAlbedos.size();
         mesh.vertexCount = aiMesh->mNumVertices;
         mesh.indexCount = aiMesh->mNumFaces * 3;
         mesh.startVertex = vertices.size();
@@ -118,12 +128,9 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
             // if compressed
             if (texture->mHeight == 0)
             {
-                if (texture->CheckFormat("jpg"))
-                {
-                    vpp::TextureImageCreationResults result = backend->createTextureImage((stbi_uc*)texture->pcData, texture->mWidth, &mipLevels[i]);
-                    textureImages.push_back(result.image);
-                    textureImageViews.push_back(result.imageView);
-                }
+                vpp::TextureImageCreationResults result = backend->createTextureImage((stbi_uc*)texture->pcData, texture->mWidth, &mipLevels[i]);
+                albedoImages.push_back(result.image);
+                albedoImageViews.push_back(result.imageView);
             }
 		}
 	}
@@ -141,13 +148,7 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
         {
             aiColor3D diffuse;
             material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
-            colors.push_back(glm::vec4(diffuse.r, diffuse.g, diffuse.b, 1.0f));
-
-            aiColor3D specular;
-            material->Get(AI_MATKEY_COLOR_SPECULAR, specular);
-
-            aiColor3D ambient;
-            material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
+            flatAlbedos.push_back(glm::vec4(diffuse.r, diffuse.g, diffuse.b, 1.0f));
 
             aiColor3D emissive;
             material->Get(AI_MATKEY_COLOR_EMISSIVE, emissive);
@@ -155,16 +156,22 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
             aiColor3D transparent;
             material->Get(AI_MATKEY_COLOR_TRANSPARENT, transparent);
 
-            aiColor3D reflective;
-            material->Get(AI_MATKEY_COLOR_REFLECTIVE, reflective);
+            aiColor3D metallic;
+            material->Get(AI_MATKEY_METALLIC_FACTOR, metallic);
+            flatMetallics.push_back(metallic.r);
+
+            aiColor3D roughness;
+            material->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness);
+            flatRoughnesses.push_back(roughness.r);
         }
 
         else if (textureType == TEXTURE || textureType == EMBEDDED)
         {
+            aiString Path;
+
+            //albedo
             if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
             {
-                aiString Path;
-
                 if (material->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
                 {
                     if (textureType == TEXTURE)
@@ -172,14 +179,55 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
                         std::string FullPath = directory + "/" + Path.data;
 
                         vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
-                        textureImages.push_back(results.image);
-                        textureImageViews.push_back(results.imageView);
+                        albedoImages.push_back(results.image);
+                        albedoImageViews.push_back(results.imageView);
                     }
-                    else if (textureType == EMBEDDED)
-                    {
-						// Remove the first char from Path and convert the rest to an int
-                        int index = std::stoi(Path.data + 1);
-					}
+                }
+                else
+                {
+                    throw std::runtime_error("Texture path retrieval failed");
+                }
+			}
+            else
+            {
+                std::cout << "No albedo texture found for material " << i << std::endl;
+                albedoImages.push_back(defaultImage);
+                albedoImageViews.push_back(defaultImageView);
+            }
+
+            //metallic
+            if (material->GetTextureCount(aiTextureType_METALNESS) > 0)
+            {
+                if (material->GetTexture(aiTextureType_METALNESS, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
+                {
+					std::string FullPath = directory + "/" + Path.data;
+
+					vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
+					metallicImages.push_back(results.image);
+					metallicImageViews.push_back(results.imageView);
+				}
+                else
+                {
+					throw std::runtime_error("Texture path retrieval failed");
+				}
+			}
+            else
+            {
+                std::cout << "No metallic texture found for material " << i << std::endl;
+                metallicImages.push_back(defaultImage);
+                metallicImageViews.push_back(defaultImageView);
+            }
+
+            //roughness
+            if (material->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS) > 0)
+            {
+                if (material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
+                {
+                    std::string FullPath = directory + "/" + Path.data;
+
+                    vpp::TextureImageCreationResults results = backend->createTextureImage(FullPath, &mipLevels[i]);
+                    roughnessImages.push_back(results.image);
+                    roughnessImageViews.push_back(results.imageView);
                 }
                 else
                 {
@@ -188,8 +236,9 @@ vpp::Model::Model(std::string path, std::shared_ptr<vpp::Backend> backend, Textu
             }
             else
             {
-                std::cout << "Material has no diffuse texture\n";
-                break;
+                std::cout << "No roughness texture found for material " << i << std::endl;
+                roughnessImages.push_back(defaultImage);
+                roughnessImageViews.push_back(defaultImageView);
             }
         }
     }

@@ -16,7 +16,7 @@ vpp::ViewProjectionMatrices vpp::Camera::getMVPMatrices(float width, float heigh
 	ViewProjectionMatrices matrices;
 
 	matrices.view = glm::lookAt(this->position, this->position + this->front, this->up);
-	matrices.proj = glm::perspective(glm::radians(45.0f), width / height, 10.0f, 1000000.0f);
+	matrices.proj = glm::perspective(glm::radians(45.0f), width / height, 20.0f, 50000.0f);
 	matrices.proj[1][1] *= -1;
 
 	return matrices;
