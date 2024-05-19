@@ -14,10 +14,10 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
 
     sky = std::make_shared<vpp::Model>("models/skyBox/sky.glb", backend, vpp::TextureType::EMBEDDED);
     models.push_back(sky);
-    sky->scale = glm::vec3(19.0f);
+    sky->scale = glm::vec3(1900.0f);
         
-    std::shared_ptr<vpp::Model> sponza = std::make_shared<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
-    models.push_back(sponza);
+    /*std::shared_ptr<vpp::Model> sponza = std::make_shared<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
+    models.push_back(sponza);*/
 
     /*std::shared_ptr<vpp::Model> sponza = std::make_unique<vpp::Model>("models/sponza3/NewSponza_Main_glTF_002.gltf", backend, vpp::TEXTURE);
     models.push_back(sponza);
@@ -27,8 +27,8 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     models.push_back(sponzaCurtains);
     sponzaCurtains->scale = glm::vec3(100.0f);*/
 
-    /*std::shared_ptr<vpp::Model> trashGod = std::make_shared<vpp::Model>("models/trashGod/scene.fbx", backend, vpp::FLAT_COLOR);
-    models.push_back(trashGod);*/
+    std::shared_ptr<vpp::Model> trashGod = std::make_shared<vpp::Model>("models/trashGod/scene.fbx", backend, vpp::FLAT_COLOR);
+    models.push_back(trashGod);
 
     vpp::Model::finishLoadingModels(backend);
 
@@ -38,6 +38,9 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     initialize();
     createDescriptorSets();
     createGraphicsPipeline();
+
+    controls.ambientFactor = 0.1f;
+    controls.sunlightIntensity = 3.0f;
 }
 
 void TriangleRenderer::cleanup_extended()
@@ -46,7 +49,7 @@ void TriangleRenderer::cleanup_extended()
     vkDestroyPipelineLayout(backend->device, pipelineLayout, nullptr);
     vkDestroyRenderPass(backend->device, backend->swapChainRenderPass, nullptr);
 
-    modelViewProjectionDescriptorSetLayout.reset();
+    perFrameDescriptorSetLayout.reset();
 
     vkDestroyShaderModule(backend->device, fragShaderModule, nullptr);
     vkDestroyShaderModule(backend->device, vertShaderModule, nullptr);
@@ -55,12 +58,13 @@ void TriangleRenderer::cleanup_extended()
 		viewProjectionUniformBuffers[i].reset();
         modelUniformBuffers[i].reset();
         cameraLightInfoBuffers[i].reset();
+        controlUniformBuffers[i].reset();
 	}
 
     vpp::Model::destroyModels(backend);
 
-    modelViewProjectionDescriptorSetLayout.reset();
-    modelViewProjectionDescriptorSets.clear();
+    perFrameDescriptorSetLayout.reset();
+    perFrameDescriptorSets.clear();
 }
 
 void TriangleRenderer::createGraphicsPipeline()
@@ -196,7 +200,7 @@ void TriangleRenderer::createGraphicsPipeline()
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     std::vector<VkDescriptorSetLayout> layouts = {
-        modelViewProjectionDescriptorSetLayout->descriptorSetLayout,
+        perFrameDescriptorSetLayout->descriptorSetLayout,
         vpp::Model::getTextureDescriptorSetLayout()->descriptorSetLayout,
         vpp::Model::getColorDescriptorSetLayout()->descriptorSetLayout
     };
@@ -263,7 +267,7 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
     vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
     vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &modelViewProjectionDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
     vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
     vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
 
@@ -362,6 +366,11 @@ void TriangleRenderer::main_loop_extended(uint32_t currentFrame, uint32_t imageI
     ImGui::NewFrame();
     
     // Imgui window here
+    ImGui::Text("Controls\n");
+
+    ImGui::SliderFloat("Sunlight Intensity", &controls.sunlightIntensity, 0.0f, 10.0f);
+
+    ImGui::SliderFloat("Ambient Factor", &controls.ambientFactor, 0.0f, 1.0f);
 
     updateUniformBuffers(currentFrame);
     recordCommandBuffer(currentFrame, imageIndex);
@@ -375,6 +384,7 @@ void TriangleRenderer::createUniformBuffers()
         viewProjectionUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, viewProjectionUBOSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "View Projection Uniform Buffer"));
         modelUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(glm::mat4), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Model Uniform buffer"));
         cameraLightInfoBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(CameraLightInfo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Camera Light Info buffer"));
+        controlUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(Controls), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Control Uniform buffer"));
     }
 }
 
@@ -396,24 +406,28 @@ void TriangleRenderer::updateUniformBuffers(uint32_t currentImage)
     cameraLightInfo.cameraPos = glm::vec4(camera.position, 1.0f);
     cameraLightInfo.lightDir = glm::vec4(-1.0f, 1.0f, -1.0f, 0.0f);
     memcpy(cameraLightInfoBuffers[currentImage]->mappedPtr, &cameraLightInfo, sizeof(cameraLightInfo));
+
+    memcpy(controlUniformBuffers[currentImage]->mappedPtr, &controls, sizeof(controls));
 }
 
 void TriangleRenderer::createDescriptorSets()
 {
-    modelViewProjectionDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Model view projection descriptor set layout");
-    modelViewProjectionDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
-    modelViewProjectionDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    modelViewProjectionDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    modelViewProjectionDescriptorSetLayout->createLayout();
+    perFrameDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Model view projection descriptor set layout");
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    perFrameDescriptorSetLayout->createLayout();
 
-    modelViewProjectionDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    perFrameDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
     {
-        modelViewProjectionDescriptorSets[i] = std::make_shared<vpp::SuperDescriptorSet>(backend, modelViewProjectionDescriptorSetLayout, "Model View Projection descriptor set " + std::to_string(i));
-        modelViewProjectionDescriptorSets[i]->addBuffersToBinding({ viewProjectionUniformBuffers[i] });
-        modelViewProjectionDescriptorSets[i]->addBuffersToBinding({ modelUniformBuffers[i] });
-        modelViewProjectionDescriptorSets[i]->addBuffersToBinding({ cameraLightInfoBuffers[i] });
-        modelViewProjectionDescriptorSets[i]->createDescriptorSet();
+        perFrameDescriptorSets[i] = std::make_shared<vpp::SuperDescriptorSet>(backend, perFrameDescriptorSetLayout, "Model View Projection descriptor set " + std::to_string(i));
+        perFrameDescriptorSets[i]->addBuffersToBinding({ viewProjectionUniformBuffers[i] });
+        perFrameDescriptorSets[i]->addBuffersToBinding({ modelUniformBuffers[i] });
+        perFrameDescriptorSets[i]->addBuffersToBinding({ cameraLightInfoBuffers[i] });
+        perFrameDescriptorSets[i]->addBuffersToBinding({ controlUniformBuffers[i]});
+        perFrameDescriptorSets[i]->createDescriptorSet();
 	}
 
 }

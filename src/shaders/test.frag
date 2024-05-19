@@ -25,6 +25,11 @@ layout(set = 0, binding = 2) uniform CameraLightInfo {
     vec4 lightDir;
 } cameraLightInfo;
 
+layout(set = 0, binding = 3) uniform Controls {
+	float sunlightIntensity;
+    float ambientFactor;
+} controls;
+
 layout(set = 1, binding = 0) uniform sampler2D albedoSampler[];
 layout(set = 1, binding = 1) uniform sampler2D metallicSampler[];
 layout(set = 1, binding = 2) uniform sampler2D roughnessSampler[];
@@ -120,7 +125,7 @@ void main() {
             //float distance    = length(lightPositions[i] - WorldPos);
             //float attenuation = 1.0 / (distance * distance);
             //vec3 radiance     = lightColors[i] * attenuation;        
-            vec3 radiance     = vec3(5.0, 5.0, 5.0);        
+            vec3 radiance     = vec3(1.0, 1.0, 1.0) * controls.sunlightIntensity;  
         
             // cook-torrance brdf
             float NDF = DistributionGGX(N, H, roughness);        
@@ -141,7 +146,7 @@ void main() {
         }   
   
         //vec3 ambient = vec3(0.03) * albedo * ao;
-        vec3 ambient = vec3(0.5) * albedo;
+        vec3 ambient = vec3(controls.ambientFactor) * albedo;
         vec3 color = ambient + Lo;
 	
         //color = color / (color + vec3(1.0));

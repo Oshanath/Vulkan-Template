@@ -20,6 +20,12 @@ struct CameraLightInfo
 	glm::vec4 lightDir;
 };
 
+struct Controls
+{
+	float sunlightIntensity;
+	float ambientFactor;
+};
+
 class TriangleRenderer : public vpp::Application
 {
 private:
@@ -34,12 +40,15 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
+	Controls controls;
+
 	std::vector<std::shared_ptr<vpp::Buffer>> viewProjectionUniformBuffers;
 	std::vector<std::shared_ptr<vpp::Buffer>> modelUniformBuffers;
 	std::vector<std::shared_ptr<vpp::Buffer>> cameraLightInfoBuffers;
+	std::vector<std::shared_ptr<vpp::Buffer>> controlUniformBuffers;
 
-	std::shared_ptr<vpp::SuperDescriptorSetLayout> modelViewProjectionDescriptorSetLayout;
-	std::vector< std::shared_ptr<vpp::SuperDescriptorSet>> modelViewProjectionDescriptorSets;
+	std::shared_ptr<vpp::SuperDescriptorSetLayout> perFrameDescriptorSetLayout;
+	std::vector< std::shared_ptr<vpp::SuperDescriptorSet>> perFrameDescriptorSets;
 
 public:
 	TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
