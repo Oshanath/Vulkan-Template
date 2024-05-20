@@ -71,6 +71,7 @@ namespace vpp
 		TextureImageCreationResults createTextureImage(std::string path, uint32_t* mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
+		void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 
 		inline void setNameOfObject(VkObjectType type, uint64_t objectHandle, std::string name)
@@ -141,6 +142,8 @@ namespace vpp
 		~Image();
 
 		void generateMipMaps();
+		void transitionLayout(VkImageLayout oldLayout, VkImageLayout newLayout);
+		void transitionLayout(VkCommandBuffer commandBuffer, VkImageLayout oldLayout, VkImageLayout newLayout);
 	};
 
 	class ImageView
@@ -234,7 +237,7 @@ namespace vpp
 	class GraphicsPipeline : public Pipeline
 	{
 	public:
-		GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable);
+		GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable, uint32_t colorAttachmentCount);
 		~GraphicsPipeline();
 
 		void addShaderStage(VkShaderStageFlagBits stage, std::string path);
@@ -250,7 +253,7 @@ namespace vpp
 		VkPipelineViewportStateCreateInfo viewportState{};
 		VkPipelineRasterizationStateCreateInfo rasterizer{};
 		VkPipelineMultisampleStateCreateInfo multisampling{};
-		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments;
 		VkPipelineColorBlendStateCreateInfo colorBlending{};
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 
@@ -274,6 +277,7 @@ namespace vpp
 		VkComputePipelineCreateInfo pipelineInfo{};
 
 	private:
+		VkShaderModule computeShaderModule;
 		VkPipelineShaderStageCreateInfo computeShaderStageInfo = {};
 
 	};

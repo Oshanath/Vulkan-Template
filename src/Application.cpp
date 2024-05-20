@@ -864,6 +864,6 @@ void vpp::Application::createDescriptorPool()
 
 void vpp::Application::createDepthResources()
 {
-    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Swapchain depth image");
+    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Swapchain depth image");
     backend->depthImageView = std::make_shared<ImageView>(backend, backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT, "Swapchain depth image view");
 }

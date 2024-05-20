@@ -28,7 +28,7 @@ void vpp::Pipeline::addDescriptorSetLayout(std::shared_ptr<vpp::SuperDescriptorS
 }
 
 
-vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable):
+vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::string name, VkRenderPass renderPass, VkBool32 depthTestEnable, VkBool32 depthWriteEnable, uint32_t colorAttachmentCount):
     Pipeline(backend, name)
 {
 
@@ -105,20 +105,25 @@ vpp::GraphicsPipeline::GraphicsPipeline(std::shared_ptr<Backend> backend, std::s
     multisampling.alphaToOneEnable = VK_FALSE; // Optional
 
     // Color blending
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_TRUE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    for(uint32_t i = 0; i < colorAttachmentCount; i++)
+	{
+		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.blendEnable = VK_TRUE;
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachments.push_back(colorBlendAttachment);
+	}
 
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
     colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
+    colorBlending.attachmentCount = colorBlendAttachments.size();
+    colorBlending.pAttachments = colorBlendAttachments.data();
     colorBlending.blendConstants[0] = 0.0f; // Optional
     colorBlending.blendConstants[1] = 0.0f; // Optional
     colorBlending.blendConstants[2] = 0.0f; // Optional
@@ -194,7 +199,7 @@ vpp::ComputePipeline::ComputePipeline(std::shared_ptr<Backend> backend, std::str
 {
     // Load compute shader pipeline
     auto computeShaderCode = vpp::Backend::readFile(path);
-    auto computeShaderModule = backend->createShaderModule(computeShaderCode);
+    computeShaderModule = backend->createShaderModule(computeShaderCode);
 
     computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -206,7 +211,6 @@ vpp::ComputePipeline::ComputePipeline(std::shared_ptr<Backend> backend, std::str
     pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipelineInfo.stage = computeShaderStageInfo;
 
-    vkDestroyShaderModule(backend->device, computeShaderModule, nullptr);
 }
 
 vpp::ComputePipeline::~ComputePipeline()
@@ -230,4 +234,7 @@ void vpp::ComputePipeline::createPipeline()
     if (vkCreateComputePipelines(backend->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create compute pipeline!");
 	}
+
+    vkDestroyShaderModule(backend->device, computeShaderModule, nullptr);
+
 }

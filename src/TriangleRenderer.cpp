@@ -37,8 +37,14 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
 
     createUniformBuffers();
     initialize();
+
+    createGeometryPassImages();
     createDescriptorSets();
     createGraphicsPipeline();
+    createGeometryPassRenderPass();
+    createGeometryPassPipeline();
+    createGeometryPassFrameBuffer();
+    createLightingPassPipeline();
 
     controls.ambientFactor = 0.1f;
     controls.sunlightIntensity = 3.0f;
@@ -63,11 +69,30 @@ void TriangleRenderer::cleanup_extended()
 
     perFrameDescriptorSetLayout.reset();
     perFrameDescriptorSets.clear();
+
+    vkDestroyFramebuffer(backend->device, geometryPassFrameBuffer, nullptr);
+
+	positionImageView.reset();
+	positionImage.reset();
+
+	normalImageView.reset();
+	normalImage.reset();
+
+	albedoImageView.reset();
+	albedoImage.reset();
+
+	metallicImageView.reset();
+	metallicImage.reset();
+
+	roughnessImageView.reset();
+	roughnessImage.reset();
+
+	vkDestroyRenderPass(backend->device, geometryPassRenderPass, nullptr);
 }
 
 void TriangleRenderer::createGraphicsPipeline()
 {
-    graphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Graphics Pipeline", backend->swapChainRenderPass, VK_TRUE, VK_TRUE);
+    graphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Graphics Pipeline", backend->swapChainRenderPass, VK_TRUE, VK_TRUE, 1);
     graphicsPipeline->addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, "shaders/test.vert.spv");
     graphicsPipeline->addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, "shaders/test.frag.spv");
     graphicsPipeline->addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vpp::MainPushConstants));
@@ -77,27 +102,178 @@ void TriangleRenderer::createGraphicsPipeline()
     graphicsPipeline->createPipeline();
 }
 
-void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t imageIndex)
+void TriangleRenderer::createLightingPassPipeline()
 {
-    beginCommandBuffer();
+    lightingPassComputePipeline = std::make_shared<vpp::ComputePipeline>(backend, "TriangleRenderer::Lighting pass Pipeline", "shaders/lightingPass.comp.spv");
+    lightingPassComputePipeline->addDescriptorSetLayout(perFrameDescriptorSetLayout);
+    lightingPassComputePipeline->addDescriptorSetLayout(gBufferDescriptorSetLayout);
+    lightingPassComputePipeline->addDescriptorSetLayout(swapChainImageDescriptorSetLayout);
+    lightingPassComputePipeline->addPushConstantRange(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(vpp::MainPushConstants));
+    lightingPassComputePipeline->createPipeline();
+}
 
-    beginRenderPass(currentFrame, imageIndex);
+void TriangleRenderer::createGeometryPassPipeline()
+{
+    geometryPassGraphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Geometry pass Pipeline", geometryPassRenderPass, VK_TRUE, VK_TRUE, 5);
+    geometryPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, "shaders/geometryPass.vert.spv");
+    geometryPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, "shaders/geometryPass.frag.spv");
+    geometryPassGraphicsPipeline->addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vpp::MainPushConstants));
+    geometryPassGraphicsPipeline->addDescriptorSetLayout(perFrameDescriptorSetLayout);
+    geometryPassGraphicsPipeline->addDescriptorSetLayout(vpp::Model::getTextureDescriptorSetLayout());
+    geometryPassGraphicsPipeline->addDescriptorSetLayout(vpp::Model::getColorDescriptorSetLayout());
+    geometryPassGraphicsPipeline->createPipeline();
+}
 
-    vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipeline);
+void TriangleRenderer::createGeometryPassRenderPass()
+{
+    // Attachment descriptions
+    VkAttachmentDescription positionAttachment{};
+    positionAttachment.format = positionImage->format;
+    positionAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    positionAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    positionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    positionAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    positionAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    positionAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    positionAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    setDynamicState();
+    VkAttachmentDescription depthAttachment{};
+    depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkDeviceSize offsets[] = { 0 };
+    VkAttachmentDescription normalAttachment = positionAttachment;
+    normalAttachment.format = normalImage->format;
 
-    vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
-    vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
+    VkAttachmentDescription albedoAttachment = positionAttachment;
+    albedoAttachment.format = albedoImage->format;
 
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
+    VkAttachmentDescription metallicAttachment = positionAttachment;
+    metallicAttachment.format = metallicImage->format;
 
+    VkAttachmentDescription roughnessAttachment = positionAttachment;
+    roughnessAttachment.format = roughnessImage->format;
+
+    // Attachment references
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 0;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference positionAttachmentRef{};
+	positionAttachmentRef.attachment = 1;
+	positionAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference normalAttachmentRef = positionAttachmentRef;
+	normalAttachmentRef.attachment = 2;
+
+	VkAttachmentReference albedoAttachmentRef = positionAttachmentRef;
+	albedoAttachmentRef.attachment = 3;
+
+	VkAttachmentReference metallicAttachmentRef = positionAttachmentRef;
+	metallicAttachmentRef.attachment = 4;
+
+	VkAttachmentReference roughnessAttachmentRef = positionAttachmentRef;
+	roughnessAttachmentRef.attachment = 5;
+
+    std::vector<VkAttachmentReference> colorAttachmentRefs = { positionAttachmentRef, normalAttachmentRef, albedoAttachmentRef, metallicAttachmentRef, roughnessAttachmentRef };
+
+    // Subpass
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = colorAttachmentRefs.size();
+    subpass.pColorAttachments = colorAttachmentRefs.data();
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+    // Subpass dependencies
+    std::array<VkSubpassDependency, 2> dependencies;
+
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].dependencyFlags = 0;
+
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    dependencies[1].dependencyFlags = 0;
+
+    std::vector<VkAttachmentDescription> attachments = { depthAttachment, positionAttachment, normalAttachment, albedoAttachment, metallicAttachment, roughnessAttachment };
+
+    VkRenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = attachments.size();
+	renderPassInfo.pAttachments = attachments.data();
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = dependencies.size();
+    renderPassInfo.pDependencies = dependencies.data();
+
+    if (vkCreateRenderPass(backend->device, &renderPassInfo, nullptr, &geometryPassRenderPass) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create render pass!");
+    }
+}
+
+void TriangleRenderer::createGeometryPassFrameBuffer()
+{
+    std::vector<VkImageView> attachments = {
+        backend->depthImageView->imageView,
+        positionImageView->imageView,
+        normalImageView->imageView,
+        albedoImageView->imageView,
+        metallicImageView->imageView,
+        roughnessImageView->imageView
+    };
+
+    VkFramebufferCreateInfo framebufferInfo{};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = geometryPassRenderPass;
+    framebufferInfo.attachmentCount = attachments.size();
+    framebufferInfo.pAttachments = attachments.data();
+    framebufferInfo.width = backend->swapChainExtent.width;
+    framebufferInfo.height = backend->swapChainExtent.height;
+    framebufferInfo.layers = 1;
+
+    if (vkCreateFramebuffer(backend->device, &framebufferInfo, nullptr, &geometryPassFrameBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create framebuffer!");
+    }
+}
+
+void TriangleRenderer::createGeometryPassImages()
+{
+    positionImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Position Image");
+    positionImageView = std::make_shared<vpp::ImageView>(backend, positionImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Position Image View");
+
+    normalImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Normal Image");
+	normalImageView = std::make_shared<vpp::ImageView>(backend, normalImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Normal Image View");
+
+	albedoImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Albedo Image");
+	albedoImageView = std::make_shared<vpp::ImageView>(backend, albedoImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Albedo Image View");
+
+	metallicImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Metallic Image");
+	metallicImageView = std::make_shared<vpp::ImageView>(backend, metallicImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Metallic Image View");
+
+	roughnessImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Roughness Image");
+	roughnessImageView = std::make_shared<vpp::ImageView>(backend, roughnessImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Roughness Image View");
+
+    tempOutImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Temp Out Image");
+    tempOutImageView = std::make_shared<vpp::ImageView>(backend, tempOutImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Temp Out Image View");
+}
+
+void TriangleRenderer::renderObjects()
+{
     vpp::MainPushConstants pushConstants;
-    
+
     for (auto& model : models)
     {
         pushConstants.textureType = uint32_t(model->textureType);
@@ -127,6 +303,44 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
             }
         }
     }
+}
+
+void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t imageIndex)
+{
+    beginCommandBuffer();
+
+    {
+        // Geometry pass
+        beginGeometryPass(currentFrame, imageIndex);
+        renderObjects();
+        vkCmdEndRenderPass(backend->commandBuffers[currentFrame]);
+
+        // Lighting pass
+        vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipeline);
+
+		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 1, 1, &gBufferDescriptorSet->descriptorSet, 0, nullptr);
+		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 2, 1, &swapChainImageDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+
+		vkCmdDispatch(backend->commandBuffers[currentFrame], backend->swapChainExtent.width / 16, backend->swapChainExtent.height / 16, 1);
+    }
+
+    beginRenderPass(currentFrame, imageIndex);
+
+    vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipeline);
+
+    setDynamicState();
+
+    VkDeviceSize offsets[] = { 0 };
+
+    vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
+    vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
+
+    renderObjects();
 
     // Imgui
     ImGui::Render();
@@ -156,6 +370,42 @@ void TriangleRenderer::beginRenderPass(uint32_t currentFrame, uint32_t imageInde
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(backend->commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void TriangleRenderer::beginGeometryPass(uint32_t currentFrame, uint32_t imageIndex)
+{
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = geometryPassRenderPass;
+    renderPassInfo.framebuffer = geometryPassFrameBuffer;
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = backend->swapChainExtent;
+
+    std::vector<VkClearValue> clearValues(6);
+    clearValues[0].depthStencil = { 1.0f, 0 };
+    clearValues[1].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+    clearValues[2].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+    clearValues[3].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+    clearValues[4].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+    clearValues[5].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
+
+    vkCmdBeginRenderPass(backend->commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, geometryPassGraphicsPipeline->pipeline);
+
+    setDynamicState();
+
+    VkDeviceSize offsets[] = { 0 };
+
+    vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
+    vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
 }
 
 void TriangleRenderer::setDynamicState()
@@ -237,11 +487,12 @@ void TriangleRenderer::updateUniformBuffers(uint32_t currentImage)
 
 void TriangleRenderer::createDescriptorSets()
 {
+    // Per frame descriptor set
     perFrameDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Model view projection descriptor set layout");
     perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
     perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 1);
     perFrameDescriptorSetLayout->createLayout();
 
     perFrameDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
@@ -253,6 +504,39 @@ void TriangleRenderer::createDescriptorSets()
         perFrameDescriptorSets[i]->addBuffersToBinding({ cameraLightInfoBuffers[i] });
         perFrameDescriptorSets[i]->addBuffersToBinding({ controlUniformBuffers[i]});
         perFrameDescriptorSets[i]->createDescriptorSet();
+	}
+
+    // G buffer descriptor set
+    std::shared_ptr<vpp::Sampler> sampler = std::make_shared<vpp::Sampler>(backend, 1, "Temp sampler");
+
+    gBufferDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "G Buffer descriptor set layout");
+    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // position
+    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // normal
+    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // albedo
+    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // metallic
+    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // roughness
+    gBufferDescriptorSetLayout->createLayout();
+
+    gBufferDescriptorSet = std::make_shared<vpp::SuperDescriptorSet>(backend, gBufferDescriptorSetLayout, "G Buffer descriptor set");
+    gBufferDescriptorSet->addImagesToBinding({ positionImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	gBufferDescriptorSet->addImagesToBinding({ normalImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	gBufferDescriptorSet->addImagesToBinding({ albedoImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	gBufferDescriptorSet->addImagesToBinding({ metallicImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	gBufferDescriptorSet->addImagesToBinding({ roughnessImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	gBufferDescriptorSet->createDescriptorSet();
+
+    // Swapchain descriptor set
+
+    swapChainImageDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Swapchain image descriptor set layout");
+    swapChainImageDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1);   
+    swapChainImageDescriptorSetLayout->createLayout();
+
+    for(size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		swapChainImageDescriptorSets.push_back(std::make_shared<vpp::SuperDescriptorSet>(backend, swapChainImageDescriptorSetLayout, "Swapchain image descriptor set " + std::to_string(i)));
+        //swapChainImageDescriptorSets[i]->addImagesToBinding({ backend->swapChainImageViews[i] }, { VK_NULL_HANDLE }, { VK_IMAGE_LAYOUT_GENERAL });
+        swapChainImageDescriptorSets[i]->addImagesToBinding({ tempOutImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+		swapChainImageDescriptorSets[i]->createDescriptorSet();
 	}
 
 }
