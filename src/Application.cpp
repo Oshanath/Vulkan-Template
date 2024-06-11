@@ -478,6 +478,7 @@ void vpp::Application::createLogicalDevice()
 
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -557,7 +558,7 @@ VkSurfaceFormatKHR vpp::Application::chooseSwapSurfaceFormat(const std::vector<V
         if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return availableFormat;
         }
-    }
+        }
 
     return availableFormats[0];
 }
@@ -646,6 +647,12 @@ void vpp::Application::createSwapChain()
     vkGetSwapchainImagesKHR(backend->device, backend->swapChain, &backend->imageCount, nullptr);
     backend->swapChainImages.resize(backend->imageCount);
     vkGetSwapchainImagesKHR(backend->device, backend->swapChain, &backend->imageCount, backend->swapChainImages.data());
+
+    for (int i = 0; i < backend->imageCount; i++)
+    {
+        backend->setNameOfObject(VK_OBJECT_TYPE_IMAGE, (uint64_t)backend->swapChainImages[i], "Swapchain Image " + std::to_string(i));
+    }
+
     backend->swapChainImageFormat = surfaceFormat.format;
     backend->swapChainExtent = extent;
 }
@@ -822,10 +829,10 @@ void vpp::Application::createSwapChainRenderPass()
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependency.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
     std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
@@ -864,6 +871,6 @@ void vpp::Application::createDescriptorPool()
 
 void vpp::Application::createDepthResources()
 {
-    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Swapchain depth image");
+    backend->depthImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Swapchain depth image");
     backend->depthImageView = std::make_shared<ImageView>(backend, backend->depthImage, 0, 1, VK_IMAGE_ASPECT_DEPTH_BIT, "Swapchain depth image view");
 }

@@ -36,41 +36,41 @@ layout(set = 2, binding = 2) buffer Roughness{
 	float color[];
 } roughnessColors;
 
-layout(location = 0) out vec4 outPosition;
-layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec4 outAlbedo;
-layout(location = 3) out vec4 outMetallic;
-layout(location = 4) out vec4 outRoughness;
+layout(location = 0) out vec4 outNormal;
+layout(location = 1) out vec4 outAlbedo;
+layout(location = 2) out vec4 outMetallic;
+layout(location = 3) out vec4 outRoughness;
 
 void main() {
 
     vec4 albedo;
     float metallic, roughness;
 
-
+    
     if(pushConstants.textureType == TEXTURE_TYPE_TEXTURE)
     {
-        albedo = vec4(texture(albedoSampler[pushConstants.materialIndex], TexCoord).rgb, 0.9);
+        albedo = vec4(texture(albedoSampler[pushConstants.materialIndex], TexCoord).rgb, 1.0);
         metallic = texture(metallicSampler[pushConstants.materialIndex], TexCoord).r;
         roughness = texture(roughnessSampler[pushConstants.materialIndex], TexCoord).r;
+	    outMetallic = vec4(metallic, 0.0, 0.0, 1.0);
     }
     else if(pushConstants.textureType == TEXTURE_TYPE_COLOR)
     {
-        albedo = vec4(colors.color[pushConstants.colorIndex].rgb, 0.8);
+        albedo = vec4(colors.color[pushConstants.colorIndex].rgb, 1.0);
         metallic = metallicColors.color[pushConstants.colorIndex].r;
         roughness = roughnessColors.color[pushConstants.colorIndex].r;
+	    outMetallic = vec4(metallic, 0.0, 0.0, 1.0);
     }
 	else if(pushConstants.textureType == TEXTURE_TYPE_EMBEDDED)
     {
-		albedo = vec4(texture(albedoSampler[pushConstants.materialIndex], TexCoord).rgb, 0.2);
+		albedo = vec4(texture(albedoSampler[pushConstants.materialIndex], TexCoord).rgb, 1.0);
         metallic = 0.0;
         roughness = 0.0;
+	    outMetallic = vec4(metallic, 1.0, 0.0, 1.0);
 	}
 
-    outPosition = vec4(WorldPos, 1.0);
 	outNormal = vec4(Normal, 1.0);
 	outAlbedo = albedo;
-	outMetallic = vec4(metallic);
-	outRoughness = vec4(roughness);
+	outRoughness = vec4(roughness, 0.0, 0.0, 1.0);
 
 }

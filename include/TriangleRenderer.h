@@ -6,7 +6,11 @@
 #include "Model.h"
 #include "util.h"
 
-
+struct ViewportDims
+{
+	uint32_t width;
+	uint32_t height;
+};
 
 class TriangleRenderer : public vpp::Application
 {
@@ -19,6 +23,7 @@ private:
 	std::shared_ptr<vpp::GraphicsPipeline> graphicsPipeline;
 	std::shared_ptr<vpp::GraphicsPipeline> geometryPassGraphicsPipeline;
 	std::shared_ptr<vpp::ComputePipeline> lightingPassComputePipeline;
+	std::shared_ptr<vpp::GraphicsPipeline> toneMappingPassGraphicsPipeline;
 
 	vpp::Controls controls;
 
@@ -26,14 +31,17 @@ private:
 	std::vector<std::shared_ptr<vpp::Buffer>> modelUniformBuffers;
 	std::vector<std::shared_ptr<vpp::Buffer>> cameraLightInfoBuffers;
 	std::vector<std::shared_ptr<vpp::Buffer>> controlUniformBuffers;
+	std::vector<std::shared_ptr<vpp::Buffer>> viewportUniformBuffers;
 
 	std::shared_ptr<vpp::SuperDescriptorSetLayout> perFrameDescriptorSetLayout;
 	std::shared_ptr<vpp::SuperDescriptorSetLayout> gBufferDescriptorSetLayout;
-	std::shared_ptr<vpp::SuperDescriptorSetLayout> swapChainImageDescriptorSetLayout;
+	std::shared_ptr<vpp::SuperDescriptorSetLayout> lightingImageDescriptorSetLayout;
+	std::shared_ptr<vpp::SuperDescriptorSetLayout> depthImageDescriptorSetLayout;
 
 	std::vector< std::shared_ptr<vpp::SuperDescriptorSet>> perFrameDescriptorSets;
 	std::shared_ptr<vpp::SuperDescriptorSet> gBufferDescriptorSet;
-	std::vector< std::shared_ptr<vpp::SuperDescriptorSet>> swapChainImageDescriptorSets;
+	std::shared_ptr<vpp::SuperDescriptorSet> lightingImageDescriptorSet;
+	std::shared_ptr<vpp::SuperDescriptorSet> depthImageDescriptorSet;
 
 	std::shared_ptr<vpp::Image> positionImage;
 	std::shared_ptr<vpp::ImageView> positionImageView;
@@ -50,11 +58,12 @@ private:
 	std::shared_ptr<vpp::Image> roughnessImage;
 	std::shared_ptr<vpp::ImageView> roughnessImageView;
 
-	std::shared_ptr<vpp::Image> tempOutImage;
-	std::shared_ptr<vpp::ImageView> tempOutImageView;
+	std::shared_ptr<vpp::Image> lightingImage;
+	std::shared_ptr<vpp::ImageView> lightingImageView;
 
 	VkFramebuffer geometryPassFrameBuffer;
 	VkRenderPass geometryPassRenderPass;
+	std::shared_ptr<vpp::Sampler> sampler;
 
 public:
 	TriangleRenderer(std::string app_name, uint32_t apiVersion, std::vector<VkValidationFeatureEnableEXT> validation_features);
@@ -64,6 +73,7 @@ public:
 	void createGraphicsPipeline();
 	void createLightingPassPipeline();
 	void createGeometryPassPipeline();
+	void createToneMappingPassPipeline();
 	void createGeometryPassFrameBuffer();
 	void createGeometryPassImages();
 	void createGeometryPassRenderPass();

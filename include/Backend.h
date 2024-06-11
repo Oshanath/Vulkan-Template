@@ -272,8 +272,6 @@ namespace vpp
 
 		void createPipeline();
 
-		VkPipeline pipeline;
-		VkPipelineLayout pipelineLayout;
 		VkComputePipelineCreateInfo pipelineInfo{};
 
 	private:

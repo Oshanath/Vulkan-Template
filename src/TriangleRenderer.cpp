@@ -15,10 +15,10 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
 
     sky = std::make_shared<vpp::Model>("models/skyBox/sky.glb", backend, vpp::TextureType::EMBEDDED);
     models.push_back(sky);
-    sky->scale = glm::vec3(1900.0f);
+    sky->scale = glm::vec3(190.0f);
         
-    /*std::shared_ptr<vpp::Model> sponza = std::make_shared<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
-    models.push_back(sponza);*/
+    std::shared_ptr<vpp::Model> sponza = std::make_shared<vpp::Model>("models/sponza/Sponza.gltf", backend, vpp::TEXTURE);
+    models.push_back(sponza);
 
     /*std::shared_ptr<vpp::Model> sponza = std::make_unique<vpp::Model>("models/sponza3/NewSponza_Main_glTF_002.gltf", backend, vpp::TEXTURE);
     models.push_back(sponza);
@@ -38,6 +38,8 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     createUniformBuffers();
     initialize();
 
+    sampler = std::make_shared<vpp::Sampler>(backend, 1, "Depth sampler");
+
     createGeometryPassImages();
     createDescriptorSets();
     createGraphicsPipeline();
@@ -45,6 +47,7 @@ TriangleRenderer::TriangleRenderer(std::string app_name, uint32_t apiVersion, st
     createGeometryPassPipeline();
     createGeometryPassFrameBuffer();
     createLightingPassPipeline();
+    createToneMappingPassPipeline();
 
     controls.ambientFactor = 0.1f;
     controls.sunlightIntensity = 3.0f;
@@ -63,6 +66,7 @@ void TriangleRenderer::cleanup_extended()
         modelUniformBuffers[i].reset();
         cameraLightInfoBuffers[i].reset();
         controlUniformBuffers[i].reset();
+        viewportUniformBuffers[i].reset();
 	}
 
     vpp::Model::destroyModels(backend);
@@ -88,6 +92,26 @@ void TriangleRenderer::cleanup_extended()
 	roughnessImage.reset();
 
 	vkDestroyRenderPass(backend->device, geometryPassRenderPass, nullptr);
+
+    geometryPassGraphicsPipeline.reset();
+
+	lightingImageDescriptorSetLayout.reset();
+	lightingImageDescriptorSet.reset();
+	lightingImageView.reset();
+	lightingImage.reset();
+
+	lightingPassComputePipeline.reset();
+
+    gBufferDescriptorSetLayout.reset();
+    gBufferDescriptorSet.reset();
+
+    toneMappingPassGraphicsPipeline.reset();
+
+    sampler.reset();
+    depthImageDescriptorSet.reset();
+    depthImageDescriptorSetLayout.reset();
+
+
 }
 
 void TriangleRenderer::createGraphicsPipeline()
@@ -102,19 +126,37 @@ void TriangleRenderer::createGraphicsPipeline()
     graphicsPipeline->createPipeline();
 }
 
+void TriangleRenderer::createToneMappingPassPipeline()
+{
+    toneMappingPassGraphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Tone Mapping Pipeline", backend->swapChainRenderPass, VK_FALSE, VK_FALSE, 1);
+    toneMappingPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, "shaders/toneMappingPass.vert.spv");
+    toneMappingPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, "shaders/toneMappingPass.frag.spv");
+    toneMappingPassGraphicsPipeline->addDescriptorSetLayout(lightingImageDescriptorSetLayout);
+
+    toneMappingPassGraphicsPipeline->vertexInputInfo.vertexAttributeDescriptionCount = 0;
+    toneMappingPassGraphicsPipeline->vertexInputInfo.vertexBindingDescriptionCount = 0;
+    toneMappingPassGraphicsPipeline->vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+    toneMappingPassGraphicsPipeline->vertexInputInfo.pVertexBindingDescriptions = nullptr;
+    toneMappingPassGraphicsPipeline->rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+    toneMappingPassGraphicsPipeline->rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    toneMappingPassGraphicsPipeline->createPipeline();
+}
+
 void TriangleRenderer::createLightingPassPipeline()
 {
     lightingPassComputePipeline = std::make_shared<vpp::ComputePipeline>(backend, "TriangleRenderer::Lighting pass Pipeline", "shaders/lightingPass.comp.spv");
     lightingPassComputePipeline->addDescriptorSetLayout(perFrameDescriptorSetLayout);
     lightingPassComputePipeline->addDescriptorSetLayout(gBufferDescriptorSetLayout);
-    lightingPassComputePipeline->addDescriptorSetLayout(swapChainImageDescriptorSetLayout);
+    lightingPassComputePipeline->addDescriptorSetLayout(lightingImageDescriptorSetLayout);
+    lightingPassComputePipeline->addDescriptorSetLayout(depthImageDescriptorSetLayout);
     lightingPassComputePipeline->addPushConstantRange(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(vpp::MainPushConstants));
     lightingPassComputePipeline->createPipeline();
 }
 
 void TriangleRenderer::createGeometryPassPipeline()
 {
-    geometryPassGraphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Geometry pass Pipeline", geometryPassRenderPass, VK_TRUE, VK_TRUE, 5);
+    geometryPassGraphicsPipeline = std::make_shared<vpp::GraphicsPipeline>(backend, "TriangleRenderer::Geometry pass Pipeline", geometryPassRenderPass, VK_TRUE, VK_TRUE, 4);
     geometryPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, "shaders/geometryPass.vert.spv");
     geometryPassGraphicsPipeline->addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, "shaders/geometryPass.frag.spv");
     geometryPassGraphicsPipeline->addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vpp::MainPushConstants));
@@ -127,15 +169,15 @@ void TriangleRenderer::createGeometryPassPipeline()
 void TriangleRenderer::createGeometryPassRenderPass()
 {
     // Attachment descriptions
-    VkAttachmentDescription positionAttachment{};
-    positionAttachment.format = positionImage->format;
-    positionAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    positionAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    positionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    positionAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    positionAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    positionAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    positionAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentDescription normalAttachment{};
+    normalAttachment.format = normalImage->format;
+    normalAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    normalAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    normalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    normalAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    normalAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    normalAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    normalAttachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = VK_FORMAT_D32_SFLOAT;
@@ -145,18 +187,15 @@ void TriangleRenderer::createGeometryPassRenderPass()
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    VkAttachmentDescription normalAttachment = positionAttachment;
-    normalAttachment.format = normalImage->format;
-
-    VkAttachmentDescription albedoAttachment = positionAttachment;
+    VkAttachmentDescription albedoAttachment = normalAttachment;
     albedoAttachment.format = albedoImage->format;
 
-    VkAttachmentDescription metallicAttachment = positionAttachment;
+    VkAttachmentDescription metallicAttachment = normalAttachment;
     metallicAttachment.format = metallicImage->format;
 
-    VkAttachmentDescription roughnessAttachment = positionAttachment;
+    VkAttachmentDescription roughnessAttachment = normalAttachment;
     roughnessAttachment.format = roughnessImage->format;
 
     // Attachment references
@@ -164,23 +203,20 @@ void TriangleRenderer::createGeometryPassRenderPass()
     depthAttachmentRef.attachment = 0;
     depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference positionAttachmentRef{};
-	positionAttachmentRef.attachment = 1;
-	positionAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference normalAttachmentRef{};
+	normalAttachmentRef.attachment = 1;
+    normalAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	VkAttachmentReference normalAttachmentRef = positionAttachmentRef;
-	normalAttachmentRef.attachment = 2;
+	VkAttachmentReference albedoAttachmentRef = normalAttachmentRef;
+	albedoAttachmentRef.attachment = 2;
 
-	VkAttachmentReference albedoAttachmentRef = positionAttachmentRef;
-	albedoAttachmentRef.attachment = 3;
+	VkAttachmentReference metallicAttachmentRef = normalAttachmentRef;
+	metallicAttachmentRef.attachment = 3;
 
-	VkAttachmentReference metallicAttachmentRef = positionAttachmentRef;
-	metallicAttachmentRef.attachment = 4;
+	VkAttachmentReference roughnessAttachmentRef = normalAttachmentRef;
+	roughnessAttachmentRef.attachment = 4;
 
-	VkAttachmentReference roughnessAttachmentRef = positionAttachmentRef;
-	roughnessAttachmentRef.attachment = 5;
-
-    std::vector<VkAttachmentReference> colorAttachmentRefs = { positionAttachmentRef, normalAttachmentRef, albedoAttachmentRef, metallicAttachmentRef, roughnessAttachmentRef };
+    std::vector<VkAttachmentReference> colorAttachmentRefs = { normalAttachmentRef, albedoAttachmentRef, metallicAttachmentRef, roughnessAttachmentRef };
 
     // Subpass
     VkSubpassDescription subpass{};
@@ -194,21 +230,21 @@ void TriangleRenderer::createGeometryPassRenderPass()
 
 	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependencies[0].dstSubpass = 0;
-	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependencies[0].dependencyFlags = 0;
 
 	dependencies[1].srcSubpass = 0;
 	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
     dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     dependencies[1].dependencyFlags = 0;
 
-    std::vector<VkAttachmentDescription> attachments = { depthAttachment, positionAttachment, normalAttachment, albedoAttachment, metallicAttachment, roughnessAttachment };
+    std::vector<VkAttachmentDescription> attachments = { depthAttachment, normalAttachment, albedoAttachment, metallicAttachment, roughnessAttachment };
 
     VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -228,7 +264,6 @@ void TriangleRenderer::createGeometryPassFrameBuffer()
 {
     std::vector<VkImageView> attachments = {
         backend->depthImageView->imageView,
-        positionImageView->imageView,
         normalImageView->imageView,
         albedoImageView->imageView,
         metallicImageView->imageView,
@@ -260,14 +295,15 @@ void TriangleRenderer::createGeometryPassImages()
 	albedoImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Albedo Image");
 	albedoImageView = std::make_shared<vpp::ImageView>(backend, albedoImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Albedo Image View");
 
-	metallicImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Metallic Image");
+	metallicImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8G8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Metallic Image");
 	metallicImageView = std::make_shared<vpp::ImageView>(backend, metallicImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Metallic Image View");
 
 	roughnessImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Roughness Image");
 	roughnessImageView = std::make_shared<vpp::ImageView>(backend, roughnessImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Roughness Image View");
 
-    tempOutImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Temp Out Image");
-    tempOutImageView = std::make_shared<vpp::ImageView>(backend, tempOutImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Temp Out Image View");
+    lightingImage = std::make_shared<vpp::Image>(backend, backend->swapChainExtent.width, backend->swapChainExtent.height, 1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "Geometry pass::Temp Out Image");
+    lightingImageView = std::make_shared<vpp::ImageView>(backend, lightingImage, 0, 1, VK_IMAGE_ASPECT_COLOR_BIT, "Lighting Image View");
+    lightingImage->transitionLayout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void TriangleRenderer::renderObjects()
@@ -315,32 +351,39 @@ void TriangleRenderer::recordCommandBuffer(uint32_t currentFrame, uint32_t image
         renderObjects();
         vkCmdEndRenderPass(backend->commandBuffers[currentFrame]);
 
+        VkImageMemoryBarrier imageMemoryBarrier{};
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.image = lightingImage->image;
+        imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+        imageMemoryBarrier.subresourceRange.levelCount = 1;
+        imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+        imageMemoryBarrier.subresourceRange.layerCount = 1;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(backend->commandBuffers[currentFrame], VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
         // Lighting pass
         vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipeline);
 
 		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
 		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 1, 1, &gBufferDescriptorSet->descriptorSet, 0, nullptr);
-		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 2, 1, &swapChainImageDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
+		vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 2, 1, &lightingImageDescriptorSet->descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_COMPUTE, lightingPassComputePipeline->pipelineLayout, 3, 1, &depthImageDescriptorSet->descriptorSet, 0, nullptr);
 
 		vkCmdDispatch(backend->commandBuffers[currentFrame], backend->swapChainExtent.width / 16, backend->swapChainExtent.height / 16, 1);
     }
 
     beginRenderPass(currentFrame, imageIndex);
 
-    vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipeline);
-
+    vkCmdBindPipeline(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, toneMappingPassGraphicsPipeline->pipeline);
     setDynamicState();
-
-    VkDeviceSize offsets[] = { 0 };
-
-    vkCmdBindVertexBuffers(backend->commandBuffers[currentFrame], 0, 1, &(vpp::Model::getVertexBuffer()->buffer), offsets);
-    vkCmdBindIndexBuffer(backend->commandBuffers[currentFrame], vpp::Model::getIndexBuffer()->buffer, 0, VK_INDEX_TYPE_UINT32);
-
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 0, 1, &perFrameDescriptorSets[currentFrame]->descriptorSet, 0, nullptr);
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 1, 1, &vpp::Model::getTextureDescriptorSet()->descriptorSet, 0, nullptr);
-    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->pipelineLayout, 2, 1, &vpp::Model::getColorDescriptorSet()->descriptorSet, 0, nullptr);
-
-    renderObjects();
+    vkCmdBindDescriptorSets(backend->commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, toneMappingPassGraphicsPipeline->pipelineLayout, 0, 1, &lightingImageDescriptorSet->descriptorSet, 0, nullptr);
+    vkCmdDraw(backend->commandBuffers[currentFrame], 3, 1, 0, 0);
 
     // Imgui
     ImGui::Render();
@@ -460,6 +503,7 @@ void TriangleRenderer::createUniformBuffers()
         modelUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(glm::mat4), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Model Uniform buffer"));
         cameraLightInfoBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(vpp::CameraLightInfo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Camera Light Info buffer"));
         controlUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(vpp::Controls), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Control Uniform buffer"));
+        viewportUniformBuffers.push_back(std::make_shared<vpp::Buffer>(backend, sizeof(ViewportDims), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vpp::CONTINOUS_TRANSFER, nullptr, "Viewport Uniform buffer"));
     }
 }
 
@@ -483,13 +527,18 @@ void TriangleRenderer::updateUniformBuffers(uint32_t currentImage)
     memcpy(cameraLightInfoBuffers[currentImage]->mappedPtr, &cameraLightInfo, sizeof(cameraLightInfo));
 
     memcpy(controlUniformBuffers[currentImage]->mappedPtr, &controls, sizeof(controls));
+
+    ViewportDims viewportDims;
+    viewportDims.width = backend->swapChainExtent.width;
+    viewportDims.height = backend->swapChainExtent.height;
+    memcpy(viewportUniformBuffers[currentImage]->mappedPtr, &viewportDims, sizeof(ViewportDims));
 }
 
 void TriangleRenderer::createDescriptorSets()
 {
     // Per frame descriptor set
     perFrameDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Model view projection descriptor set layout");
-    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+    perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 1);
     perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
     perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 1);
     perFrameDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT, 1);
@@ -507,10 +556,7 @@ void TriangleRenderer::createDescriptorSets()
 	}
 
     // G buffer descriptor set
-    std::shared_ptr<vpp::Sampler> sampler = std::make_shared<vpp::Sampler>(backend, 1, "Temp sampler");
-
     gBufferDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "G Buffer descriptor set layout");
-    gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // position
     gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // normal
     gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // albedo
     gBufferDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1); // metallic
@@ -518,26 +564,32 @@ void TriangleRenderer::createDescriptorSets()
     gBufferDescriptorSetLayout->createLayout();
 
     gBufferDescriptorSet = std::make_shared<vpp::SuperDescriptorSet>(backend, gBufferDescriptorSetLayout, "G Buffer descriptor set");
-    gBufferDescriptorSet->addImagesToBinding({ positionImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
 	gBufferDescriptorSet->addImagesToBinding({ normalImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
 	gBufferDescriptorSet->addImagesToBinding({ albedoImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
 	gBufferDescriptorSet->addImagesToBinding({ metallicImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
 	gBufferDescriptorSet->addImagesToBinding({ roughnessImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
 	gBufferDescriptorSet->createDescriptorSet();
 
-    // Swapchain descriptor set
+    // Lighting image descriptor set
 
-    swapChainImageDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Swapchain image descriptor set layout");
-    swapChainImageDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1);   
-    swapChainImageDescriptorSetLayout->createLayout();
+    lightingImageDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Lighting image descriptor set layout");
+    lightingImageDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);   
+    lightingImageDescriptorSetLayout->createLayout();
 
-    for(size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		swapChainImageDescriptorSets.push_back(std::make_shared<vpp::SuperDescriptorSet>(backend, swapChainImageDescriptorSetLayout, "Swapchain image descriptor set " + std::to_string(i)));
-        //swapChainImageDescriptorSets[i]->addImagesToBinding({ backend->swapChainImageViews[i] }, { VK_NULL_HANDLE }, { VK_IMAGE_LAYOUT_GENERAL });
-        swapChainImageDescriptorSets[i]->addImagesToBinding({ tempOutImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
-		swapChainImageDescriptorSets[i]->createDescriptorSet();
-	}
+	lightingImageDescriptorSet = std::make_shared<vpp::SuperDescriptorSet>(backend, lightingImageDescriptorSetLayout, "Lighting image descriptor set");
+    lightingImageDescriptorSet->addImagesToBinding({ lightingImageView }, { sampler }, { VK_IMAGE_LAYOUT_GENERAL });
+	lightingImageDescriptorSet->createDescriptorSet();
+
+    // Depth image descriptor set
+    depthImageDescriptorSetLayout = std::make_shared<vpp::SuperDescriptorSetLayout>(backend, "Depth image descriptor set layout");
+    depthImageDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 1); // depth
+    depthImageDescriptorSetLayout->addBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1); // viewPort dims
+    depthImageDescriptorSetLayout->createLayout();
+
+    depthImageDescriptorSet = std::make_shared<vpp::SuperDescriptorSet>(backend, depthImageDescriptorSetLayout, "Depth image descriptor set");
+	depthImageDescriptorSet->addImagesToBinding({ backend->depthImageView }, { sampler }, { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL });
+    depthImageDescriptorSet->addBuffersToBinding({ viewportUniformBuffers[currentFrame] });
+    depthImageDescriptorSet->createDescriptorSet();
 
 }
 

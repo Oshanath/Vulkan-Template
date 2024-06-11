@@ -36,6 +36,8 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shaders/geometryPass.vert
     ${PROJECT_SOURCE_DIR}/src/shaders/geometryPass.frag
     ${PROJECT_SOURCE_DIR}/src/shaders/lightingPass.comp
+    ${PROJECT_SOURCE_DIR}/src/shaders/toneMappingPass.vert
+    ${PROJECT_SOURCE_DIR}/src/shaders/toneMappingPass.frag
     )
 
 include_directories(
